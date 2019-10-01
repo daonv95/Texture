@@ -154,6 +154,9 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (void)imageNodeDidStartFetchingData:(ASNetworkImageNode *)imageNode;
 
+- (NSUInteger)imageProcessingOption;
+- (NSUInteger)qosHTTPDownloaderType;
+
 /**
  * Notification that the image node will load image from cache
  *
