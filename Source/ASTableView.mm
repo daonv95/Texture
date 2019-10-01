@@ -254,6 +254,11 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     unsigned int tableNodeCanPerformActionForRow:1;
     unsigned int tableViewPerformActionForRow:1;
     unsigned int tableNodePerformActionForRow:1;
+    
+    // Interop flags
+    unsigned int interop:1;
+    unsigned int interopWillDisplayCell:1;
+    unsigned int interopDidEndDisplayingCell:1;
   } _asyncDelegateFlags;
   
   struct {
@@ -270,6 +275,12 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     unsigned int tableViewMoveRow:1;
     unsigned int tableNodeMoveRow:1;
     unsigned int sectionIndexMethods:1; // if both section index methods are implemented
+    
+    // Interop flag
+    unsigned int interop:1;
+    unsigned int interopAlwaysDequeue:1;
+    unsigned int interopTitleForHeaderInSection:1;
+    unsigned int interopTitleForFooterInSection:1;
   } _asyncDataSourceFlags;
 }
 
@@ -381,13 +392,13 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 - (void)setDataSource:(id<UITableViewDataSource>)dataSource
 {
   // UIKit can internally generate a call to this method upon changing the asyncDataSource; only assert for non-nil.
-  ASDisplayNodeAssert(dataSource == nil, @"ASTableView uses asyncDataSource, not UITableView's dataSource property.");
+  ASDisplayNodeAssert(_asyncDelegateFlags.interop || dataSource == nil, @"ASTableView uses asyncDataSource, not UITableView's dataSource property.");
 }
 
 - (void)setDelegate:(id<UITableViewDelegate>)delegate
 {
   // Our UIScrollView superclass sets its delegate to nil on dealloc. Only assert if we get a non-nil value here.
-  ASDisplayNodeAssert(delegate == nil, @"ASTableView uses asyncDelegate, not UITableView's delegate property.");
+  ASDisplayNodeAssert(_asyncDelegateFlags.interop || delegate == nil, @"ASTableView uses asyncDelegate, not UITableView's delegate property.");
 }
 
 - (id<ASTableDataSource>)asyncDataSource
@@ -426,6 +437,14 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     _asyncDataSourceFlags.tableViewCanMoveRow = [_asyncDataSource respondsToSelector:@selector(tableView:canMoveRowAtIndexPath:)];
     _asyncDataSourceFlags.tableViewMoveRow = [_asyncDataSource respondsToSelector:@selector(tableView:moveRowAtIndexPath:toIndexPath:)];
     _asyncDataSourceFlags.sectionIndexMethods = [_asyncDataSource respondsToSelector:@selector(sectionIndexTitlesForTableView:)] && [_asyncDataSource respondsToSelector:@selector(tableView:sectionForSectionIndexTitle:atIndex:)];
+    
+    _asyncDataSourceFlags.interop = [_asyncDataSource conformsToProtocol:@protocol(ASTableDataSourceInterop)];
+    if (_asyncDataSourceFlags.interop) {
+      id<ASTableDataSourceInterop> interopDataSource = (id<ASTableDataSourceInterop>)_asyncDataSource;
+      _asyncDataSourceFlags.interopAlwaysDequeue = [[interopDataSource class] respondsToSelector:@selector(dequeuesCellsForNodeBackedItems)] && [[interopDataSource class] dequeuesCellsForNodeBackedItems];
+      _asyncDataSourceFlags.interopTitleForHeaderInSection = [interopDataSource respondsToSelector:@selector(tableView:titleForHeaderInSection:)];
+      _asyncDataSourceFlags.interopTitleForFooterInSection = [interopDataSource respondsToSelector:@selector(tableView:titleForFooterInSection:)];
+    }
     
     ASDisplayNodeAssert(_asyncDataSourceFlags.tableViewNodeBlockForRow
                         || _asyncDataSourceFlags.tableViewNodeForRow
@@ -504,6 +523,12 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     _asyncDelegateFlags.tableNodeCanPerformActionForRow = [_asyncDelegate respondsToSelector:@selector(tableNode:canPerformAction:forRowAtIndexPath:withSender:)];
     _asyncDelegateFlags.tableViewPerformActionForRow = [_asyncDelegate respondsToSelector:@selector(tableView:performAction:forRowAtIndexPath:withSender:)];
     _asyncDelegateFlags.tableNodePerformActionForRow = [_asyncDelegate respondsToSelector:@selector(tableNode:performAction:forRowAtIndexPath:withSender:)];
+    _asyncDelegateFlags.interop = [_asyncDelegate conformsToProtocol:@protocol(ASTableDelegateInterop)];
+    if (_asyncDelegateFlags.interop) {
+      id<ASTableDelegateInterop> interopDelegate = (id<ASTableDelegateInterop>)_asyncDelegate;
+      _asyncDelegateFlags.interopWillDisplayCell = [interopDelegate respondsToSelector:@selector(tableView:willDisplayCell:forRowAtIndexPath:)];
+      _asyncDelegateFlags.interopDidEndDisplayingCell = [interopDelegate respondsToSelector:@selector(tableView:didEndDisplayingCell:forRowAtIndexPath:)];
+    }
   }
   
   super.delegate = (id<UITableViewDelegate>)_proxyDelegate;
@@ -911,13 +936,30 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-  _ASTableViewCell *cell = [self dequeueReusableCellWithIdentifier:kCellReuseIdentifier forIndexPath:indexPath];
-  cell.delegate = self;
-
+  UITableViewCell *cell = nil;
   ASCollectionElement *element = [_dataController.visibleMap elementForItemAtIndexPath:indexPath];
-  cell.element = element;
   ASCellNode *node = element.node;
-  if (node) {
+  
+  ASTableWrapperCellNode *wrapperNode = (node.shouldUseUIKitCell ? (ASTableWrapperCellNode *)node : nil);
+  BOOL shouldDequeExternally = _asyncDataSourceFlags.interopAlwaysDequeue || (_asyncDataSourceFlags.interop && wrapperNode);
+  
+  if (wrapperNode.cellForItemBlock) {
+    cell = wrapperNode.cellForItemBlock(wrapperNode);
+  }
+  else if (shouldDequeExternally) {
+    cell = [(id<ASTableDataSourceInterop>)_asyncDataSource tableView:tableView cellForRowAtIndexPath:indexPath];
+  }
+  else {
+    cell = [self dequeueReusableCellWithIdentifier:kCellReuseIdentifier forIndexPath:indexPath];
+  }
+  
+  ASDisplayNodeAssert(element != nil, @"Element should exist. indexPath = %@, collectionDataSource = %@", indexPath, self);
+  ASDisplayNodeAssert(cell != nil, @"UITableViewCell must not be nil. indexPath = %@, tableDataSource = %@", indexPath, self);
+  
+  if (_ASTableViewCell *asCell = ASDynamicCastStrict(cell, _ASTableViewCell)) {
+    asCell.element = element;
+    asCell.delegate = self;
+    
     [_rangeController configureContentView:cell.contentView forCellNode:node];
   }
 
@@ -988,8 +1030,21 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   _updatingInResponseToInteractiveMove = NO;
 }
 
-- (void)tableView:(UITableView *)tableView willDisplayCell:(_ASTableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)rawCell forRowAtIndexPath:(NSIndexPath *)indexPath
 {
+  if (_asyncDelegateFlags.interopWillDisplayCell) {
+    ASCellNode *node = [self nodeForRowAtIndexPath:indexPath];
+    if (node.shouldUseUIKitCell) {
+      [(id<ASTableDelegateInterop>)_asyncDelegate tableView:tableView willDisplayCell:rawCell forRowAtIndexPath:indexPath];
+    }
+  }
+  
+  _ASTableViewCell *cell = ASDynamicCastStrict(rawCell, _ASTableViewCell);
+  if (cell == nil) {
+    [_rangeController setNeedsUpdate];
+    return;
+  }
+  
   ASCollectionElement *element = cell.element;
   if (element) {
     ASDisplayNodeAssertTrue([_dataController.visibleMap elementForItemAtIndexPath:indexPath] == element);
@@ -1023,8 +1078,21 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   }
 }
 
-- (void)tableView:(UITableView *)tableView didEndDisplayingCell:(_ASTableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)tableView:(UITableView *)tableView didEndDisplayingCell:(UITableViewCell *)rawCell forRowAtIndexPath:(NSIndexPath *)indexPath
 {
+  if (_asyncDelegateFlags.interopDidEndDisplayingCell) {
+    ASCellNode *node = [self nodeForRowAtIndexPath:indexPath];
+    if (node.shouldUseUIKitCell) {
+      [(id<ASTableDelegateInterop>)_asyncDelegate tableView:tableView didEndDisplayingCell:rawCell forRowAtIndexPath:indexPath];
+    }
+  }
+  
+  _ASTableViewCell *cell = ASDynamicCastStrict(rawCell, _ASTableViewCell);
+  if (cell == nil) {
+    [_rangeController setNeedsUpdate];
+    return;
+  }
+  
   // Retrieve the element from cell instead of visible map because at this point visible map could have been updated and no longer holds the element.
   ASCollectionElement *element = cell.element;
   if (element) {
@@ -1709,52 +1777,65 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 - (ASCellNodeBlock)dataController:(ASDataController *)dataController nodeBlockAtIndexPath:(NSIndexPath *)indexPath shouldAsyncLayout:(BOOL *)shouldAsyncLayout
 {
   ASCellNodeBlock block = nil;
+  ASCellNode *cell = nil;
 
   if (_asyncDataSourceFlags.tableNodeNodeBlockForRow) {
     if (ASTableNode *tableNode = self.tableNode) {
       block = [_asyncDataSource tableNode:tableNode nodeBlockForRowAtIndexPath:indexPath];
     }
-  } else if (_asyncDataSourceFlags.tableNodeNodeForRow) {
-    ASCellNode *node = nil;
+  }
+  if (!block && !cell && _asyncDataSourceFlags.tableNodeNodeForRow) {
     if (ASTableNode *tableNode = self.tableNode) {
-    	node = [_asyncDataSource tableNode:tableNode nodeForRowAtIndexPath:indexPath];
+      cell = [_asyncDataSource tableNode:tableNode nodeForRowAtIndexPath:indexPath];
     }
-    if ([node isKindOfClass:[ASCellNode class]]) {
+    if ([cell isKindOfClass:[ASCellNode class]]) {
       block = ^{
-        return node;
+        return cell;
       };
     } else {
-      ASDisplayNodeFailAssert(@"Data source returned invalid node from tableNode:nodeForRowAtIndexPath:. Node: %@", node);
+      ASDisplayNodeFailAssert(@"Data source returned invalid node from tableNode:nodeForRowAtIndexPath:. Node: %@", cell);
     }
-  } else if (_asyncDataSourceFlags.tableViewNodeBlockForRow) {
+  }
+  if (!block && !cell && _asyncDataSourceFlags.tableViewNodeBlockForRow) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     block = [_asyncDataSource tableView:self nodeBlockForRowAtIndexPath:indexPath];
-  } else if (_asyncDataSourceFlags.tableViewNodeForRow) {
-    ASCellNode *node = [_asyncDataSource tableView:self nodeForRowAtIndexPath:indexPath];
+  }
+  if (!block && !cell && _asyncDataSourceFlags.tableViewNodeForRow) {
+    cell = [_asyncDataSource tableView:self nodeForRowAtIndexPath:indexPath];
 #pragma clang diagnostic pop
-    if ([node isKindOfClass:[ASCellNode class]]) {
+    if ([cell isKindOfClass:[ASCellNode class]]) {
       block = ^{
-        return node;
+        return cell;
       };
     } else {
-      ASDisplayNodeFailAssert(@"Data source returned invalid node from tableView:nodeForRowAtIndexPath:. Node: %@", node);
+      ASDisplayNodeFailAssert(@"Data source returned invalid node from tableView:nodeForRowAtIndexPath:. Node: %@", cell);
     }
   }
 
   // Handle nil node block
   if (block == nil) {
-    ASDisplayNodeFailAssert(@"ASTableNode could not get a node block for row at index path %@", indexPath);
-    block = ^{
-      return [[ASCellNode alloc] init];
-    };
+    if (cell == nil || ASDynamicCast(cell, ASCellNode) == nil) {
+      if (_asyncDataSourceFlags.interop) {
+        cell = [[ASTableWrapperCellNode alloc] init];
+      } else {
+        ASDisplayNodeFailAssert(@"ASTableNode could not get a node block for row at index path %@", indexPath);
+        block = ^{
+          return [[ASCellNode alloc] init];
+        };
+      }
+    }
+    
+    if (cell.shouldUseUIKitCell) {
+      *shouldAsyncLayout = NO;
+    }
   }
 
   // Wrap the node block
   __weak __typeof__(self) weakSelf = self;
   return ^{
     __typeof__(self) strongSelf = weakSelf;
-    ASCellNode *node = (block != nil ? block() : [[ASCellNode alloc] init]);
+    ASCellNode *node = (block ? block() : cell);
     ASDisplayNodeAssert([node isKindOfClass:[ASCellNode class]], @"ASTableNode provided a non-ASCellNode! %@, %@", node, strongSelf);
 
     [node enterHierarchyState:ASHierarchyStateRangeManaged];

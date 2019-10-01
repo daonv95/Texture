@@ -385,6 +385,15 @@
 
 @end
 
+@implementation ASTableWrapperCellNode
+@dynamic cellForItemBlock;
+
+- (BOOL)shouldUseUIKitCell {
+  return YES;
+}
+
+@end
+
 
 #pragma mark -
 #pragma mark ASTextCellNode

@@ -725,6 +725,27 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+
+@protocol ASTableDataSourceInterop <ASTableDataSource>
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath;
+
+@optional
+@property (class, nonatomic, readonly) BOOL dequeuesCellsForNodeBackedItems;
+
+@end
+
+
+@protocol ASTableDelegateInterop <ASTableDelegate>
+
+@optional
+
+- (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath;
+- (void)tableView:(UITableView *)tableView didEndDisplayingCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath*)indexPath API_AVAILABLE(ios(6.0));
+
+@end
+
+
 @interface ASTableNode (Deprecated)
 
 - (void)waitUntilAllUpdatesAreCommitted ASDISPLAYNODE_DEPRECATED_MSG("This method has been renamed to -waitUntilAllUpdatesAreProcessed.");
