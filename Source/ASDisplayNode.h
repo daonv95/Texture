@@ -62,6 +62,11 @@ typedef void (^ASDisplayNodeContextModifier)(CGContextRef context, id _Nullable 
 typedef ASLayoutSpec * _Nonnull(^ASLayoutSpecBlock)(__kindof ASDisplayNode *node, ASSizeRange constrainedSize);
 
 /**
+ * ASDisplayNode placeholder image block. This block can be used instead of implmenting placeholderImage in sublcass
+ */
+typedef UIImage * _Nullable(^ASPlaceholderImageBlock)(__kindof ASDisplayNode * _Nonnull node, id _Nullable parameters);
+
+/**
  * AsyncDisplayKit non-fatal error block. This block can be used for handling non-fatal errors. Useful for reporting
  * errors that happens in production.
  */
@@ -445,6 +450,13 @@ AS_EXTERN NSInteger const ASDefaultDrawingPriority;
  * @discussion Defaults to NO.
  */
 @property BOOL placeholderEnabled;
+@property (nonatomic, readonly) CALayer *placeholderLayer;
+
+@property (nonatomic, readonly) id placeholderParameters;
+@property (nonatomic, readonly) ASPlaceholderImageBlock placeholderImageBlock;
+
+- (void)setPlaceholderImageBlock:(ASPlaceholderImageBlock)placeholderImageBlock
+                  withParameters:(_Nullable id)parameters;
 
 /**
  * @abstract Set the time it takes to fade out the placeholder when a node's contents are finished displaying.

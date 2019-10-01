@@ -2645,7 +2645,34 @@ ASDISPLAYNODE_INLINE BOOL subtreeIsRasterized(ASDisplayNode *node) {
 - (UIImage *)placeholderImage
 {
   // Subclass hook
+  CGSize size = self.calculatedSize;
+  if ((size.width * size.height) < FLT_EPSILON) {
+    return nil;
+  }
+  
+  ASDN::MutexLocker l(__instanceLock__);
+  if (self.placeholderImageBlock) {
+    return self.placeholderImageBlock(self, self.placeholderParameters);
+  }
+  
   return nil;
+}
+
+- (void)setPlaceholderImageBlock:(ASPlaceholderImageBlock)placeholderImageBlock
+                  withParameters:(_Nullable id)parameters {
+  ASDN::MutexLocker l(__instanceLock__);
+  
+  _placeholderParameters = parameters;
+  _placeholderImageBlock = placeholderImageBlock;
+  
+  if (placeholderImageBlock) {
+    self.placeholderEnabled = YES;
+  }
+}
+
+- (CALayer *)placeholderLayer {
+  ASDisplayNodeAssertMainThread();
+  return _placeholderLayer;
 }
 
 - (BOOL)placeholderShouldPersist
