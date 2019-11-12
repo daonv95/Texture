@@ -18,6 +18,7 @@
 
 @class ASLayout;
 @class ASLayoutSpec;
+@protocol ASDisplayElement;
 @protocol ASLayoutElementStylability;
 
 @protocol ASTraitEnvironment;
@@ -33,7 +34,9 @@ AS_EXTERN CGSize const ASLayoutElementParentSizeUndefined;
 /** Type of ASLayoutElement  */
 typedef NS_ENUM(NSUInteger, ASLayoutElementType) {
   ASLayoutElementTypeLayoutSpec,
-  ASLayoutElementTypeDisplayNode
+  ASLayoutElementTypeDisplayNode,
+  ASLayoutElementTypeMappingElement,
+  ASLayoutElementTypeUIView
 };
 
 #pragma mark - ASLayoutElement
@@ -62,6 +65,11 @@ typedef NS_ENUM(NSUInteger, ASLayoutElementType) {
  * @abstract Returns type of layoutElement
  */
 @property (nonatomic, readonly) ASLayoutElementType layoutElementType;
+
+/**
+ * @abstract The underlying display object described by this layout
+ */
+@property (nonatomic, readonly) id<ASDisplayElement> displayElement;
 
 /**
  * @abstract A size constraint that should apply to this ASLayoutElement.

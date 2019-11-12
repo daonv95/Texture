@@ -45,7 +45,9 @@ ASDISPLAYNODE_INLINE AS_WARN_UNUSED_RESULT NSString * descriptionIndents(NSUInte
 
 ASDISPLAYNODE_INLINE AS_WARN_UNUSED_RESULT BOOL ASLayoutIsDisplayNodeType(ASLayout *layout)
 {
-  return layout.type == ASLayoutElementTypeDisplayNode;
+  return layout.type == ASLayoutElementTypeDisplayNode ||
+         layout.type == ASLayoutElementTypeMappingElement ||
+         layout.type == ASLayoutElementTypeUIView;
 }
 
 @interface ASLayout () <ASDescriptionProvider>

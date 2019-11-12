@@ -102,7 +102,7 @@
 {
   const auto allLayouts = [NSMutableArray array];
   [ASTLayoutFixture collectAllLayoutsFromLayout:self.layout array:allLayouts];
-  return [NSSet setWithArray:[allLayouts valueForKey:@"layoutElement"]];
+  return [NSSet setWithArray:[allLayouts valueForKey:@"displayElement"]];
 }
 
 - (void)apply
