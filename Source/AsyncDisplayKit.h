@@ -131,3 +131,7 @@
 #import <AsyncDisplayKit/IGListAdapter+AsyncDisplayKit.h>
 #import <AsyncDisplayKit/AsyncDisplayKit+IGListKitMethods.h>
 #import <AsyncDisplayKit/ASLayout+IGListKit.h>
+
+#import <AsyncDisplayKit/ASView.h>
+#import <AsyncDisplayKit/ASLayoutMappingElement.h>
+#import <AsyncDisplayKit/ASDisplayElement.h>

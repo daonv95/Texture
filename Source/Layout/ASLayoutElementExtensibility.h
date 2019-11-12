@@ -104,3 +104,8 @@ if (strcmp(objCType, @encode(BOOL)) == 0) { \
 { \
   objc_setAssociatedObject(self, @selector(PROPERTY_NAME), [NSValue value:&PROPERTY_NAME withObjCType:@encode(PROPERTY_TYPE)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);\
 } \
+
+#define STRINGIZE(x) #x
+#define STRINGIZE2(x) STRINGIZE(x)
+#define SHADER_STRING(text) @ STRINGIZE2(text)
+

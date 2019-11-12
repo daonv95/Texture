@@ -44,6 +44,11 @@ AS_EXTERN ASLayout *ASCalculateLayout(id<ASLayoutElement>layoutElement, const AS
 @property (nonatomic, weak, readonly) id<ASLayoutElement> layoutElement;
 
 /**
+ * The underlying display object described by this layout
+ */
+@property (nonatomic, weak, readonly) id<ASDisplayElement> displayElement;
+
+/**
  * The type of ASLayoutElement that created this layout
  */
 @property (nonatomic, readonly) ASLayoutElementType type;
