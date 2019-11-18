@@ -283,10 +283,21 @@ static std::atomic_bool static_retainsSublayoutLayoutElements = ATOMIC_VAR_INIT(
   return _layoutElementType;
 }
 
+- (id<ASDisplayElement>)displayElement
+{
+  if (self.type == ASLayoutElementTypeUIView ||
+      self.type == ASLayoutElementTypeDisplayNode ||
+      self.type == ASLayoutElementTypeMappingElement)
+  {
+    return self.layoutElement.displayElement;
+  }
+  return nil;
+}
+
 - (CGRect)frameForElement:(id<ASLayoutElement>)layoutElement
 {
   for (ASLayout *l in _sublayouts) {
-    if (l->_layoutElement == layoutElement) {
+    if (l->_layoutElement.displayElement == layoutElement.displayElement) {
       return l.frame;
     }
   }
