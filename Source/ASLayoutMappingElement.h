@@ -20,8 +20,8 @@ typedef ASLayoutSpec * _Nonnull(^ASMappingElementLayoutSpecBlock)(__kindof ASLay
 #define ASMappingKeyMake(mappingKey) \
         static _Nonnull ASMappingKey mappingKey = SHADER_STRING(mappingKey);
 
-#define ASLayoutMappingElementMake(mappingKey, mappingElementBlock) \
-        [ASLayoutMappingElement mappingElementWithKey:mappingKey mappingElementBlock:mappingElementBlock];
+#define ASLayoutMappingElementMake(mappingKey, mappingBlock) \
+        [ASLayoutMappingElement mappingElementWithKey:mappingKey mappingElementBlock:mappingBlock];
 
 AS_SUBCLASSING_RESTRICTED
 @interface ASLayoutMappingElement : NSObject <ASLayoutElement>
