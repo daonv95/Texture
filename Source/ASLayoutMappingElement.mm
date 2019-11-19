@@ -219,6 +219,8 @@ ASLayoutElementStyleExtensibilityForwarding
   return [ASLayoutSpec asciiArtStringForChildren:@[] parentName:[self asciiArtName]];
 }
 
+ASSynthesizeLockingMethodsWithMutex(__instanceLock__)
+
 @end
 
 

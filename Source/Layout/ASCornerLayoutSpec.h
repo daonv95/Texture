@@ -11,11 +11,16 @@
 /**
  The corner location for positioning corner element.
  */
-typedef NS_ENUM(NSInteger, ASCornerLayoutLocation) {
-    ASCornerLayoutLocationTopLeft,
-    ASCornerLayoutLocationTopRight,
-    ASCornerLayoutLocationBottomLeft,
-    ASCornerLayoutLocationBottomRight,
+typedef NS_OPTIONS(NSInteger, ASCornerLayoutLocation) {
+    ASCornerLayoutLocationTopLeft       = 1,
+    ASCornerLayoutLocationTopRight      = 1 << 1,
+    ASCornerLayoutLocationBottomLeft    = 1 << 2,
+    ASCornerLayoutLocationBottomRight   = 1 << 3,
+    
+    ASCornerLayoutLocationInternalTop       = 1 << 10,
+    ASCornerLayoutLocationInternalLeft      = 1 << 11,
+    ASCornerLayoutLocationInternalBottom    = 1 << 12,
+    ASCornerLayoutLocationInternalRight     = 1 << 13,
 };
 
 NS_ASSUME_NONNULL_BEGIN

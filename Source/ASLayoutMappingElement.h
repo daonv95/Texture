@@ -23,11 +23,14 @@ typedef ASLayoutSpec * _Nonnull(^ASMappingElementLayoutSpecBlock)(__kindof ASLay
 #define ASLayoutMappingElementMake(mappingKey, mappingBlock) \
         [ASLayoutMappingElement mappingElementWithKey:mappingKey mappingElementBlock:mappingBlock];
 
-AS_SUBCLASSING_RESTRICTED
-@interface ASLayoutMappingElement : NSObject <ASLayoutElement>
+@interface ASLayoutMappingElement : NSObject <ASLayoutElement, NSLocking>
 
 @property (nonatomic, readonly) ASMappingKey mappingKey;
 @property (nonatomic, readonly, copy) ASMappingElementBlock mappingElementBlock;
+
+- (instancetype)initWithMappingKey:(ASMappingKey)mappingKey;
+- (instancetype)initWithMappingKey:(ASMappingKey)mappingKey
+               mappingElementBlock:(ASMappingElementBlock)mappingElementBlock;
 
 + (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey;
 + (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey
@@ -40,6 +43,8 @@ AS_SUBCLASSING_RESTRICTED
 @property (nullable) ASMappingElementLayoutSpecBlock layoutSpecBlock;
 
 - (ASLayout *)calculateLayoutLayoutSpec:(ASSizeRange)constrainedSize;
+- (CGSize)calculateSizeThatFits:(CGSize)constrainedSize;
+- (ASLayoutSpec *)layoutSpecThatFits:(ASSizeRange)constrainedSize;
 
 @end
 
