@@ -15,8 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic, nullable) UIImage *image;
 
 + (instancetype)layoutElementWithImage:(UIImage *)image
-                            mappingKey:(ASMappingKey)mappingKey
-                          mappingBlock:(ASMappingElementBlock)mappingBlock;
+                            mappingKey:(ASMappingKey)mappingKey;
 
 @end
 

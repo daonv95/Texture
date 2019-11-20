@@ -8,6 +8,7 @@
 
 #import <Foundation/Foundation.h>
 #import <AsyncDisplayKit/ASLayoutElement.h>
+#import <AsyncDisplayKit/ASLayout.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,13 +27,15 @@ typedef ASLayoutSpec * _Nonnull(^ASMappingElementLayoutSpecBlock)(__kindof ASLay
 @interface ASLayoutMappingElement : NSObject <ASLayoutElement, NSLocking>
 
 @property (nonatomic, readonly) ASMappingKey mappingKey;
-@property (nonatomic, readonly, copy) ASMappingElementBlock mappingElementBlock;
+@property (nonatomic, readonly) ASMappingElementBlock mappingElementBlock;
 
 - (instancetype)initWithMappingKey:(ASMappingKey)mappingKey;
+
 - (instancetype)initWithMappingKey:(ASMappingKey)mappingKey
                mappingElementBlock:(ASMappingElementBlock)mappingElementBlock;
 
 + (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey;
+
 + (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey
                   mappingElementBlock:(ASMappingElementBlock)mappingElementBlock;
 
@@ -45,6 +48,12 @@ typedef ASLayoutSpec * _Nonnull(^ASMappingElementLayoutSpecBlock)(__kindof ASLay
 - (ASLayout *)calculateLayoutLayoutSpec:(ASSizeRange)constrainedSize;
 - (CGSize)calculateSizeThatFits:(CGSize)constrainedSize;
 - (ASLayoutSpec *)layoutSpecThatFits:(ASSizeRange)constrainedSize;
+
+@end
+
+@interface ASLayout (MappingElement)
+
+- (void)mappingWithBlock:(ASMappingElementBlock)mappingBlock;
 
 @end
 

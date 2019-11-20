@@ -33,18 +33,12 @@ ASMappingKeyMake(ASButton_ImageElement)
 
 + (instancetype)layoutElementWithImage:(UIImage *)image
                                  title:(NSAttributedString *)title
-                            mappingKey:(ASMappingKey)mappingKey
-                          mappingBlock:(ASMappingElementBlock)mappingBlock {
+                            mappingKey:(ASMappingKey)mappingKey {
   
-  ASButtonLayoutElement *element = [ASButtonLayoutElement mappingElementWithKey:mappingKey mappingElementBlock:mappingBlock];
+  ASButtonLayoutElement *element = [ASButtonLayoutElement mappingElementWithKey:mappingKey];
   
-  __weak typeof(element) weakElement = element;
-  element.titleElement = [ASTextLayoutElement layoutElementWithAttributedString:title mappingKey:ASButton_TitleElement mappingBlock:^id<ASDisplayElement> _Nullable(ASMappingKey  _Nonnull mappingKey) {
-    return ((ASButtonNode *)weakElement.displayElement).titleNode;
-  }];
-  element.imageElement = [ASImageLayoutElement layoutElementWithImage:image mappingKey:ASButton_ImageElement mappingBlock:^id<ASDisplayElement> _Nullable(ASMappingKey  _Nonnull mappingKey) {
-    return ((ASButtonNode *)weakElement.displayElement).imageNode;
-  }];
+  element.titleElement = [ASTextLayoutElement layoutElementWithAttributedString:title mappingKey:ASButton_TitleElement];
+  element.imageElement = [ASImageLayoutElement layoutElementWithImage:image mappingKey:ASButton_ImageElement];
   
   return element;
 }

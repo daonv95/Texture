@@ -11,10 +11,9 @@
 @implementation ASTextLayoutElement
 
 + (instancetype)layoutElementWithAttributedString:(NSAttributedString *)attributedText
-                                       mappingKey:(ASMappingKey)mappingKey
-                                     mappingBlock:(ASMappingElementBlock)mappingBlock {
+                                       mappingKey:(ASMappingKey)mappingKey {
   
-  ASTextLayoutElement *element = [ASTextLayoutElement mappingElementWithKey:mappingKey mappingElementBlock:mappingBlock];
+  ASTextLayoutElement *element = [ASTextLayoutElement mappingElementWithKey:mappingKey];
   element.attributedText = attributedText;
   element.style.flexShrink = 1.0;
   element.style.flexGrow = 0.0;

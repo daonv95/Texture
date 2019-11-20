@@ -15,8 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, copy) NSAttributedString *attributedText;
 
 + (instancetype)layoutElementWithAttributedString:(NSAttributedString *)attributedText
-                                       mappingKey:(ASMappingKey)mappingKey
-                                     mappingBlock:(ASMappingElementBlock)mappingBlock;
+                                       mappingKey:(ASMappingKey)mappingKey;
 
 @end
 

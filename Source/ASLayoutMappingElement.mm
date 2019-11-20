@@ -43,6 +43,8 @@ BOOL ASMappingElementSubclassOverridesSelector(Class subclass, SEL selector)
   NSString *_debugName;
 }
 
+@property (nonatomic, copy) ASMappingElementBlock mappingElementBlock;
+
 @end
 
 @implementation ASLayoutMappingElement
@@ -317,6 +319,29 @@ ASSynthesizeLockingMethodsWithMutex(__instanceLock__)
     return ({
       [self layoutSpecThatFits:constrainedSize];
     });
+  }
+}
+
+@end
+
+
+@implementation ASLayout (MappingElement)
+
+- (void)mappingWithBlock:(ASMappingElementBlock)mappingBlock {
+  NSMutableArray *stack = [NSMutableArray arrayWithObject:self];
+  
+  while (stack.count > 0) {
+    ASLayout *layout = stack.lastObject;
+    [stack removeLastObject];
+    
+    id<ASLayoutElement> layoutElement = layout.layoutElement;
+    if (layoutElement.layoutElementType == ASLayoutElementTypeMappingElement) {
+      [(ASLayoutMappingElement *)layoutElement setMappingElementBlock:mappingBlock];
+    }
+    
+    if (layout.sublayouts && layout.sublayouts.count > 0) {
+      [stack addObjectsFromArray:layout.sublayouts];
+    }
   }
 }
 

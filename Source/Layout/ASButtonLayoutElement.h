@@ -28,8 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)layoutElementWithImage:(UIImage *)imageNode
                                  title:(NSAttributedString *)title
-                            mappingKey:(ASMappingKey)mappingKey
-                          mappingBlock:(ASMappingElementBlock)mappingBlock;
+                            mappingKey:(ASMappingKey)mappingKey;
 
 @end
 

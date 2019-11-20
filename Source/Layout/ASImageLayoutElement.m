@@ -11,11 +11,9 @@
 @implementation ASImageLayoutElement
 
 + (instancetype)layoutElementWithImage:(UIImage *)image
-                            mappingKey:(ASMappingKey)mappingKey
-                          mappingBlock:(ASMappingElementBlock)mappingBlock {
+                            mappingKey:(ASMappingKey)mappingKey {
   
-  ASImageLayoutElement *element = [ASImageLayoutElement mappingElementWithKey:mappingKey
-                                                          mappingElementBlock:mappingBlock];
+  ASImageLayoutElement *element = [ASImageLayoutElement mappingElementWithKey:mappingKey];
   element.image = image;
   element.style.flexShrink = 1.0;
   element.style.flexGrow = 0.0;
