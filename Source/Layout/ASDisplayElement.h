@@ -8,10 +8,13 @@
 
 #import <UIKit/UIKit.h>
 #import <AsyncDisplayKit/ASDisplayNode.h>
+#import <AsyncDisplayKit/ASLayoutMappingElement.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol ASDisplayElement <NSObject>
+
+- (id<ASDisplayElement>)displayElementForMappingKey:(ASMappingKey)mappingKey;
 
 @end
 
