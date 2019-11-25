@@ -18,8 +18,8 @@ ASMappingKeyMake(ASButton_ImageElement)
 
 @implementation ASButtonLayoutElement
 
-- (instancetype)initWithMappingKey:(ASMappingKey)mappingKey mappingElementBlock:(ASMappingElementBlock)mappingElementBlock {
-  self = [super initWithMappingKey:mappingKey mappingElementBlock:mappingElementBlock];
+- (instancetype)initWithMappingKey:(ASMappingKey)mappingKey {
+  self = [super initWithMappingKey:mappingKey];
   if (self) {
     _contentSpacing = 8.0;
     _laysOutHorizontally = YES;

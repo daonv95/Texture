@@ -27,17 +27,9 @@ typedef ASLayoutSpec * _Nonnull(^ASMappingElementLayoutSpecBlock)(__kindof ASLay
 @interface ASLayoutMappingElement : NSObject <ASLayoutElement, NSLocking>
 
 @property (nonatomic, readonly) ASMappingKey mappingKey;
-@property (nonatomic, readonly) ASMappingElementBlock mappingElementBlock;
 
 - (instancetype)initWithMappingKey:(ASMappingKey)mappingKey;
-
-- (instancetype)initWithMappingKey:(ASMappingKey)mappingKey
-               mappingElementBlock:(ASMappingElementBlock)mappingElementBlock;
-
 + (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey;
-
-+ (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey
-                  mappingElementBlock:(ASMappingElementBlock)mappingElementBlock;
 
 @end
 

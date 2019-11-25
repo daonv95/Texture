@@ -43,8 +43,6 @@ BOOL ASMappingElementSubclassOverridesSelector(Class subclass, SEL selector)
   NSString *_debugName;
 }
 
-@property (nonatomic, copy) ASMappingElementBlock mappingElementBlock;
-
 @end
 
 @implementation ASLayoutMappingElement
@@ -62,24 +60,9 @@ BOOL ASMappingElementSubclassOverridesSelector(Class subclass, SEL selector)
   return self;
 }
 
-- (instancetype)initWithMappingKey:(ASMappingKey)mappingKey
-               mappingElementBlock:(ASMappingElementBlock)mappingElementBlock
-{
-  self = [self initWithMappingKey:mappingKey];
-  if (self) {
-    _mappingElementBlock = mappingElementBlock;
-  }
-  return self;
-}
-
 + (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey
 {
   return [[self alloc] initWithMappingKey:mappingKey];
-}
-
-+ (instancetype)mappingElementWithKey:(ASMappingKey)mappingKey mappingElementBlock:(ASMappingElementBlock)mappingElementBlock
-{
-  return [[self alloc] initWithMappingKey:mappingKey mappingElementBlock:mappingElementBlock];
 }
 
 #pragma mark - ASLayoutElement Protocol
