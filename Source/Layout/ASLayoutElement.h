@@ -18,7 +18,6 @@
 
 @class ASLayout;
 @class ASLayoutSpec;
-@protocol ASDisplayElement;
 @protocol ASLayoutElementStylability;
 
 @protocol ASTraitEnvironment;
@@ -65,11 +64,6 @@ typedef NS_ENUM(NSUInteger, ASLayoutElementType) {
  * @abstract Returns type of layoutElement
  */
 @property (nonatomic, readonly) ASLayoutElementType layoutElementType;
-
-/**
- * @abstract The underlying display object described by this layout
- */
-@property (nonatomic, readonly) id<ASDisplayElement> displayElement;
 
 /**
  * @abstract A size constraint that should apply to this ASLayoutElement.

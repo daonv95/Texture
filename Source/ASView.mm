@@ -8,7 +8,6 @@
 
 #import <AsyncDisplayKit/ASView.h>
 #import <AsyncDisplayKit/ASThread.h>
-#import <AsyncDisplayKit/ASDisplayElement.h>
 #import <AsyncDisplayKit/ASDisplayNodeLayout.h>
 #import <AsyncDisplayKit/ASLayoutSpec+Subclasses.h>
 #import <AsyncDisplayKit/ASLayoutSpecPrivate.h>
@@ -60,10 +59,6 @@ ASDK_STYLE_PROP_OBJ(ASLayout *, _unflattenedLayout, _setUnflattenedLayout)
 - (ASLayoutElementType)layoutElementType
 {
   return ASLayoutElementTypeUIView;
-}
-
-- (id<ASDisplayElement>)displayElement {
-  return self;
 }
 
 - (ASPrimitiveTraitCollection)primitiveTraitCollection

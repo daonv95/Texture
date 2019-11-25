@@ -88,13 +88,6 @@ BOOL ASMappingElementSubclassOverridesSelector(Class subclass, SEL selector)
   return ASLayoutElementTypeMappingElement;
 }
 
-- (id<ASDisplayElement>)displayElement {
-  if (self.mappingElementBlock) {
-    return self.mappingElementBlock(self.mappingKey);
-  }
-  return nil;
-}
-
 ASPrimitiveTraitCollectionDefaults
 
 - (ASTraitCollection *)asyncTraitCollection {
@@ -334,9 +327,10 @@ ASSynthesizeLockingMethodsWithMutex(__instanceLock__)
     ASLayout *layout = stack.lastObject;
     [stack removeLastObject];
     
-    id<ASLayoutElement> layoutElement = layout.layoutElement;
-    if (layoutElement.layoutElementType == ASLayoutElementTypeMappingElement) {
-      [(ASLayoutMappingElement *)layoutElement setMappingElementBlock:mappingBlock];
+    ASLayoutMappingElement *mappingElement = ASDynamicCast(layout.layoutElement, ASLayoutMappingElement);
+    if (mappingElement) {
+      layout.type = ASLayoutElementTypeDisplayNode;
+      layout.layoutElement = (id<ASLayoutElement>)mappingBlock(mappingElement.mappingKey);
     }
     
     if (layout.sublayouts && layout.sublayouts.count > 0) {

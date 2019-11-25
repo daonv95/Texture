@@ -278,26 +278,20 @@ static std::atomic_bool static_retainsSublayoutLayoutElements = ATOMIC_VAR_INIT(
 
 #pragma mark - Accessors
 
+- (void)setType:(ASLayoutElementType)type
+{
+  _layoutElementType = type;
+}
+
 - (ASLayoutElementType)type
 {
   return _layoutElementType;
 }
 
-- (id<ASDisplayElement>)displayElement
-{
-  if (self.type == ASLayoutElementTypeUIView ||
-      self.type == ASLayoutElementTypeDisplayNode ||
-      self.type == ASLayoutElementTypeMappingElement)
-  {
-    return self.layoutElement.displayElement;
-  }
-  return nil;
-}
-
 - (CGRect)frameForElement:(id<ASLayoutElement>)layoutElement
 {
   for (ASLayout *l in _sublayouts) {
-    if (l->_layoutElement.displayElement == layoutElement.displayElement) {
+    if (l->_layoutElement == layoutElement) {
       return l.frame;
     }
   }
@@ -330,6 +324,15 @@ static std::atomic_bool static_retainsSublayoutLayoutElements = ATOMIC_VAR_INIT(
   subnodeFrame.size = adjustedSize;
   
   return subnodeFrame;
+}
+
+#pragma mark - NSCopying
+
+- (id)copyWithZone:(NSZone *)zone {
+  return [ASLayout layoutWithLayoutElement:self.layoutElement
+                                      size:self.size
+                                  position:self.position
+                                sublayouts:[self.sublayouts copy]];
 }
 
 #pragma mark - Description

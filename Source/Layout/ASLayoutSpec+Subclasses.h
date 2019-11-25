@@ -54,6 +54,16 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic) CGPoint position;
 
+/**
+ * The underlying object described by this layout
+ */
+@property (nonatomic, weak) id<ASLayoutElement> layoutElement;
+
+/**
+ * The type of ASLayoutElement that created this layout
+ */
+@property (nonatomic) ASLayoutElementType type;
+
 @end
 
 NS_ASSUME_NONNULL_END

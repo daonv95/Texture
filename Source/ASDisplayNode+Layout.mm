@@ -16,7 +16,6 @@
 #import <AsyncDisplayKit/ASLayout.h>
 #import <AsyncDisplayKit/ASLayoutElementStylePrivate.h>
 #import <AsyncDisplayKit/ASLog.h>
-#import <AsyncDisplayKit/ASDisplayElement.h>
 
 #pragma mark - ASDisplayNode (ASLayoutElement)
 
@@ -51,11 +50,6 @@
 - (ASLayoutElementType)layoutElementType
 {
   return ASLayoutElementTypeDisplayNode;
-}
-
-- (id<ASDisplayElement>)displayElement
-{
-  return self;
 }
 
 - (NSArray<id<ASLayoutElement>> *)sublayoutElements

@@ -48,11 +48,6 @@
   return ASLayoutElementTypeLayoutSpec;
 }
 
-- (id<ASDisplayElement>)displayElement
-{
-  return nil;
-}
-
 - (BOOL)canLayoutAsynchronous
 {
   return YES;

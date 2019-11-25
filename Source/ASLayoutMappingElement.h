@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class ASLayoutMappingElement;
 
 typedef NSString* ASMappingKey;
-typedef id<ASDisplayElement> _Nullable(^ASMappingElementBlock)(ASMappingKey mappingKey);
+typedef id<ASLayoutElement> _Nullable(^ASMappingElementBlock)(ASMappingKey mappingKey);
 typedef ASLayoutSpec * _Nonnull(^ASMappingElementLayoutSpecBlock)(__kindof ASLayoutMappingElement *element, ASSizeRange constrainedSize);
 
 #define ASMappingKeyMake(mappingKey) \

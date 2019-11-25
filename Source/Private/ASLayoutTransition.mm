@@ -14,7 +14,6 @@
 #import <AsyncDisplayKit/ASLayout.h>
 #import <AsyncDisplayKit/ASDisplayNodeInternal.h> // Required for _insertSubnode... / _removeFromSupernode.
 #import <AsyncDisplayKit/ASLog.h>
-#import <AsyncDisplayKit/ASDisplayElement.h>
 
 #import <queue>
 
@@ -168,7 +167,7 @@ static inline BOOL ASLayoutCanTransitionAsynchronous(ASLayout *layout) {
     _insertedSubnodePositions = findNodesInLayoutAtIndexes(pendingLayout, result.inserts, &_insertedSubnodes);
     findNodesInLayoutAtIndexes(previousLayout, result.deletes, &_removedSubnodes);
     for (IGListMoveIndex *move in result.moves) {
-      _subnodeMoves.push_back(std::make_pair(previousLayout.sublayouts[move.from].displayElement, move.to));
+      _subnodeMoves.push_back(std::make_pair(previousLayout.sublayouts[move.from].layoutElement, move.to));
     }
 
     // Sort by ascending order of move destinations, this will allow easy loop of `insertSubnode:AtIndex` later.
@@ -179,8 +178,8 @@ static inline BOOL ASLayoutCanTransitionAsynchronous(ASLayout *layout) {
 #else
     NSIndexSet *insertions, *deletions;
     NSArray<NSIndexPath *> *moves;
-    NSArray<id<ASDisplayElement>> *previousNodes = [previousLayout.sublayouts valueForKey:@"displayElement"];
-    NSArray<id<ASDisplayElement>> *pendingNodes = [pendingLayout.sublayouts valueForKey:@"displayElement"];
+    NSArray<ASDisplayNode *> *previousNodes = [previousLayout.sublayouts valueForKey:@"layoutElement"];
+    NSArray<ASDisplayNode *> *pendingNodes = [pendingLayout.sublayouts valueForKey:@"layoutElement"];
     [previousNodes asdk_diffWithArray:pendingNodes
                            insertions:&insertions
                             deletions:&deletions
@@ -190,7 +189,7 @@ static inline BOOL ASLayoutCanTransitionAsynchronous(ASLayout *layout) {
     _removedSubnodes = [previousNodes objectsAtIndexes:deletions];
     // These should arrive sorted in ascending order of move destinations.
     for (NSIndexPath *move in moves) {
-      _subnodeMoves.push_back(std::make_pair(previousLayout.sublayouts[([move indexAtPosition:0])].displayElement,
+      _subnodeMoves.push_back(std::make_pair(previousLayout.sublayouts[([move indexAtPosition:0])].layoutElement,
               [move indexAtPosition:1]));
     }
 #endif
@@ -255,7 +254,7 @@ static inline BOOL ASLayoutCanTransitionAsynchronous(ASLayout *layout) {
  */
 static inline std::vector<NSUInteger> findNodesInLayoutAtIndexes(ASLayout *layout,
                                                                  NSIndexSet *indexes,
-                                                                 NSArray<id<ASDisplayElement>> * __strong *storedNodes)
+                                                                 NSArray<ASDisplayNode *> * __strong *storedNodes)
 {
   return findNodesInLayoutAtIndexesWithFilteredNodes(layout, indexes, nil, storedNodes);
 }
@@ -267,10 +266,10 @@ static inline std::vector<NSUInteger> findNodesInLayoutAtIndexes(ASLayout *layou
  */
 static inline std::vector<NSUInteger> findNodesInLayoutAtIndexesWithFilteredNodes(ASLayout *layout,
                                                                                   NSIndexSet *indexes,
-                                                                                  NSArray<id<ASDisplayElement>> *filteredNodes,
-                                                                                  NSArray<id<ASDisplayElement>> * __strong *storedNodes)
+                                                                                  NSArray<ASDisplayNode *> *filteredNodes,
+                                                                                  NSArray<ASDisplayNode *> * __strong *storedNodes)
 {
-  NSMutableArray<id<ASDisplayElement>> *nodes = [NSMutableArray arrayWithCapacity:indexes.count];
+  NSMutableArray<ASDisplayNode *> *nodes = [NSMutableArray arrayWithCapacity:indexes.count];
   std::vector<NSUInteger> positions = std::vector<NSUInteger>();
   
   // From inspection, this is how enumerateObjectsAtIndexes: works under the hood
@@ -280,8 +279,8 @@ static inline std::vector<NSUInteger> findNodesInLayoutAtIndexesWithFilteredNode
   for (ASLayout *sublayout in layout.sublayouts) {
     if (idx > lastIndex) { break; }
     if (idx >= firstIndex && [indexes containsIndex:idx]) {
-      id<ASDisplayElement> node = (id<ASDisplayElement>)(sublayout.displayElement);
-      ASDisplayNodeCAssert(node, @"ASDisplayElement was deallocated before it was added to a subnode. It's likely the case that you use automatically manages subnodes and allocate a ASDisplayNode in layoutSpecThatFits: and don't have any strong reference to it.");
+      ASDisplayNode *node = (ASDisplayNode *)(sublayout.layoutElement);
+      ASDisplayNodeCAssert(node, @"ASDisplayNode was deallocated before it was added to a subnode. It's likely the case that you use automatically manages subnodes and allocate a ASDisplayNode in layoutSpecThatFits: and don't have any strong reference to it.");
       ASDisplayNodeCAssert([node isKindOfClass:[ASDisplayNode class]], @"sublayout is an ASLayout, but not an ASDisplayNode - only call findNodesInLayoutAtIndexesWithFilteredNodes with a flattened layout (all sublayouts are ASDisplayNodes).");
       if (node != nil) {
         BOOL notFiltered = (filteredNodes == nil || [filteredNodes indexOfObjectIdenticalTo:node] == NSNotFound);

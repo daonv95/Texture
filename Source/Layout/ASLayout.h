@@ -36,17 +36,12 @@ AS_EXTERN ASLayout *ASCalculateLayout(id<ASLayoutElement>layoutElement, const AS
 /**
  * A node in the layout tree that represents the size and position of the object that created it (ASLayoutElement).
  */
-@interface ASLayout : NSObject
+@interface ASLayout : NSObject <NSCopying>
 
 /**
  * The underlying object described by this layout
  */
 @property (nonatomic, weak, readonly) id<ASLayoutElement> layoutElement;
-
-/**
- * The underlying display object described by this layout
- */
-@property (nonatomic, weak, readonly) id<ASDisplayElement> displayElement;
 
 /**
  * The type of ASLayoutElement that created this layout
