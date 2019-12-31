@@ -13,6 +13,7 @@
 #import <AsyncDisplayKit/ASLayoutElementPrivate.h>
 #import <AsyncDisplayKit/ASLayoutElementStylePrivate.h>
 #import <AsyncDisplayKit/ASLayoutSpec.h>
+#import <AsyncDisplayKit/ASCellNode.h>
 
 @implementation _ASGalleryLayoutItem {
   std::atomic<ASPrimitiveTraitCollection> _primitiveTraitCollection;
@@ -63,6 +64,17 @@ ASLayoutElementLayoutCalculationDefaults
 {
   ASDisplayNodeAssert(CGSizeEqualToSize(_itemSize, ASSizeRangeClamp(constrainedSize, _itemSize)),
                       @"Item size %@ can't fit within the bounds of constrained size %@", NSStringFromCGSize(_itemSize), NSStringFromASSizeRange(constrainedSize));
+    
+    if (CGSizeEqualToSize(CGSizeZero, _collectionElement.calculatedSize) && _collectionElement.nodeIfAllocated == nil) {
+        ASCellNode * node = _collectionElement.node;
+        
+        CGRect frame = CGRectZero;
+        frame.size = [node layoutThatFits:ASSizeRangeMake(_itemSize)].size;
+        node.frame = frame;
+        
+        _collectionElement.calculatedSize = node.calculatedSize;
+    }
+    
   return [ASLayout layoutWithLayoutElement:self size:_itemSize];
 }
 

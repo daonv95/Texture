@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// The corresponding table node, or nil if one does not exist.
 @property (nonatomic, weak, readonly) ASTableNode *tableNode;
 
+// Trigger a relayout all node if viewSize changed
+// Default: NO
+@property (atomic) BOOL recalculateCellLayoutWhenViewSizeChanged;
+
 /**
  * Retrieves the node for the row at the given index path.
  */

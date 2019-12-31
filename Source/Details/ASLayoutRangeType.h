@@ -62,7 +62,8 @@ static NSInteger const ASLayoutRangeModeCount = 4;
 
 typedef NS_ENUM(NSInteger, ASLayoutRangeType) {
   ASLayoutRangeTypeDisplay,
-  ASLayoutRangeTypePreload
+  ASLayoutRangeTypePreload,
+    ASLayoutRangeTypeMaintain
 };
 
-static NSInteger const ASLayoutRangeTypeCount = 2;
+static NSInteger const ASLayoutRangeTypeCount = 3;

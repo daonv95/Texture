@@ -161,6 +161,8 @@ AS_SUBCLASSING_RESTRICTED
 - (void)rangeController:(ASRangeController *)rangeController updateWithChangeSet:(_ASHierarchyChangeSet *)changeSet updates:(dispatch_block_t)updates;
 
 - (BOOL)rangeControllerShouldUpdateRanges:(ASRangeController *)rangeController;
+- (void)rangeController:(ASRangeController *)rangeController elementsDidEnterMaintainRange:(NSHashTable<ASCollectionElement *> *)elementsEnter
+elementsDidExitMaintainRange:(NSHashTable<ASCollectionElement *> *)elementsExit;
 
 @end
 

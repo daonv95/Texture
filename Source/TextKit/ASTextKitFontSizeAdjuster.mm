@@ -168,6 +168,7 @@
   // actually determining if we need to scale at all. If something doesn't fit, we will continue to iterate our scale factors.
   NSArray *scaleFactors = [@[@(1)] arrayByAddingObjectsFromArray:_attributes.pointSizeScaleFactors];
   
+    __weak __typeof__(self) weakSelf = self;
   [_context performBlockWithLockedTextKitComponents:^(NSLayoutManager *layoutManager, NSTextStorage *textStorage, NSTextContainer *textContainer) {
     
     // Check for two different situations (and correct for both)
@@ -214,7 +215,7 @@
         
         // scale our string by the current scale factor
         NSMutableAttributedString *scaledString = [[NSMutableAttributedString alloc] initWithAttributedString:textStorage];
-        [[self class] adjustFontSizeForAttributeString:scaledString withScaleFactor:adjustedScale];
+        [[weakSelf class] adjustFontSizeForAttributeString:scaledString withScaleFactor:adjustedScale];
         
         // check to see if this scaled string fit in the max lines
         if (maxLinesFits == NO) {

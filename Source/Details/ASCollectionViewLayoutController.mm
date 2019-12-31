@@ -52,23 +52,29 @@ typedef struct ASRangeGeometry ASRangeGeometry;
   return [self elementsWithinRangeBounds:rangeBounds map:map];
 }
 
-- (void)allElementsForScrolling:(ASScrollDirection)scrollDirection rangeMode:(ASLayoutRangeMode)rangeMode displaySet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)displaySet preloadSet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)preloadSet map:(ASElementMap *)map
+- (void)allElementsForScrolling:(ASScrollDirection)scrollDirection rangeMode:(ASLayoutRangeMode)rangeMode displaySet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)displaySet preloadSet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)preloadSet maintainSet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)maintainSet map:(ASElementMap *)map
 {
-  if (displaySet == NULL || preloadSet == NULL) {
+  if (displaySet == NULL || preloadSet == NULL || maintainSet == NULL) {
     return;
   }
   
   ASRangeTuningParameters displayParams = [self tuningParametersForRangeMode:rangeMode rangeType:ASLayoutRangeTypeDisplay];
   ASRangeTuningParameters preloadParams = [self tuningParametersForRangeMode:rangeMode rangeType:ASLayoutRangeTypePreload];
+    ASRangeTuningParameters maintainParams = [self tuningParametersForRangeMode:rangeMode rangeType:ASLayoutRangeTypeMaintain];
+    
   CGRect displayBounds = [self rangeBoundsWithScrollDirection:scrollDirection rangeTuningParameters:displayParams];
   CGRect preloadBounds = [self rangeBoundsWithScrollDirection:scrollDirection rangeTuningParameters:preloadParams];
+    CGRect maintainBounds = [self rangeBoundsWithScrollDirection:scrollDirection rangeTuningParameters:maintainParams];
   
-  CGRect unionBounds = CGRectUnion(displayBounds, preloadBounds);
+  CGRect unionBounds = CGRectUnion(maintainBounds, preloadBounds);
+    unionBounds = CGRectUnion(unionBounds, displayBounds);
+    
   NSArray *layoutAttributes = [_collectionViewLayout layoutAttributesForElementsInRect:unionBounds];
   NSInteger count = layoutAttributes.count;
 
   __auto_type display = [[NSHashTable<ASCollectionElement *> alloc] initWithOptions:NSHashTableObjectPointerPersonality capacity:count];
   __auto_type preload = [[NSHashTable<ASCollectionElement *> alloc] initWithOptions:NSHashTableObjectPointerPersonality capacity:count];
+    __auto_type maintain = [[NSHashTable<ASCollectionElement *> alloc] initWithOptions:NSHashTableObjectPointerPersonality capacity:count];
 
   for (UICollectionViewLayoutAttributes *la in layoutAttributes) {
     // Manually filter out elements that don't intersect the range bounds.
@@ -77,7 +83,8 @@ typedef struct ASRangeGeometry ASRangeGeometry;
     CGRect frame = la.frame;
     BOOL intersectsDisplay = CGRectIntersectsRect(displayBounds, frame);
     BOOL intersectsPreload = CGRectIntersectsRect(preloadBounds, frame);
-    if (intersectsDisplay == NO && intersectsPreload == NO && CATransform3DIsIdentity(la.transform3D) == YES) {
+      BOOL intersectsMaintain = CGRectIntersectsRect(maintainBounds, frame);
+    if (intersectsMaintain == NO && intersectsDisplay == NO && intersectsPreload == NO && CATransform3DIsIdentity(la.transform3D) == YES) {
       // Questionable why the element would be included here, but it doesn't belong.
       continue;
     }
@@ -90,10 +97,15 @@ typedef struct ASRangeGeometry ASRangeGeometry;
     if (e != nil && intersectsPreload) {
       [preload addObject:e];
     }
+      
+      if (e != nil && intersectsMaintain) {
+          [maintain addObject:e];
+      }
   }
 
   *displaySet = display;
   *preloadSet = preload;
+    *maintainSet = maintain;
   return;
 }
 

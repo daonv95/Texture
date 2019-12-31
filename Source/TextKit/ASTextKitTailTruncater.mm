@@ -149,6 +149,7 @@
 
 - (void)truncate
 {
+    __weak __typeof__(self) weakSelf = self;
   [_context performBlockWithLockedTextKitComponents:^(NSLayoutManager *layoutManager, NSTextStorage *textStorage, NSTextContainer *textContainer) {
     NSUInteger originalStringLength = textStorage.length;
 

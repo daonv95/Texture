@@ -731,7 +731,7 @@ static ASWeakMap<ASImageNodeContentsKey *, UIImage *> *cache = nil;
 
 #pragma mark - Extras
 
-asimagenode_modification_block_t ASImageNodeRoundBorderModificationBlock(CGFloat borderWidth, UIColor *borderColor)
+extern asimagenode_modification_block_t ASImageNodeRoundBorderModificationBlock(CGFloat borderWidth, UIColor *borderColor)
 {
   return ^(UIImage *originalImage) {
     ASGraphicsBeginImageContextWithOptions(originalImage.size, NO, originalImage.scale);
@@ -754,7 +754,88 @@ asimagenode_modification_block_t ASImageNodeRoundBorderModificationBlock(CGFloat
   };
 }
 
-asimagenode_modification_block_t ASImageNodeTintColorModificationBlock(UIColor *color)
+extern asimagenode_modification_block_t ASImageNodeRoundCornerBorderModificationBlock(CGFloat cornerRadius, CGSize imageSize, CGFloat borderWidth, UIColor * _Nullable borderColor) {
+    return ^(UIImage *originalImage) {
+        CGFloat ratioX = originalImage.size.width / imageSize.width;
+        CGFloat ratioY = originalImage.size.height / imageSize.height;
+        
+        // TODO: consider cache bezierPath ? the path usually have a same size
+        CGSize cornerRadii = CGSizeMake(cornerRadius * ratioX,
+                                        cornerRadius * ratioY);
+        CGRect clipRect = CGRectMake(0, 0, originalImage.size.width, originalImage.size.height);
+        
+        UIGraphicsBeginImageContextWithOptions(originalImage.size, NO, originalImage.scale);
+        UIBezierPath *roundedPath = [UIBezierPath bezierPathWithRoundedRect:clipRect byRoundingCorners:UIRectCornerAllCorners cornerRadii:cornerRadii];
+        [roundedPath addClip];
+        [originalImage drawInRect:clipRect];
+        
+        if (borderWidth > 0.0) {
+            CGRect strokeRect = CGRectInset(clipRect, borderWidth * ratioX / 2, borderWidth * ratioY / 2);
+            CGSize cornerRadii = CGSizeMake((cornerRadius - borderWidth / 2) * ratioX,
+                                            (cornerRadius - borderWidth / 2) * ratioY);
+            UIBezierPath *borderPath = [UIBezierPath bezierPathWithRoundedRect:strokeRect byRoundingCorners:UIRectCornerAllCorners cornerRadii:cornerRadii];
+            [borderPath closePath];
+            [borderColor setStroke];
+            [borderPath setLineWidth:borderWidth * ratioX];
+            [borderPath stroke];
+        }
+        
+        UIImage *clippedImage = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        
+        return clippedImage;
+    };
+}
+
+extern asimagenode_modification_block_t ASImageNodeMaskImageModificationBlock(UIImage *maskImage, CGSize imageSize) {
+    return ^(UIImage *originalImage) {
+        
+        CGImageRef alphaMask = NULL;
+        CGRect frame = CGRectZero;
+        frame.size = imageSize;
+        
+        // Create mask
+        {
+            UIGraphicsBeginImageContextWithOptions(imageSize, NO, 0);
+            CGContextRef context = UIGraphicsGetCurrentContext();
+
+            CGContextTranslateCTM(context, 0.0, CGRectGetHeight(frame));
+            CGContextScaleCTM(context, 1.0, -1.0);
+            
+            // draw sketch mask
+            {
+                [maskImage drawInRect:frame];
+                
+                // Save alpha mask.
+                alphaMask = CGBitmapContextCreateImage(context);
+                
+                // Clear the content.
+                CGContextClearRect(context, frame);
+            }
+            
+            UIGraphicsEndImageContext();
+        }
+        
+        // Create masked image
+        {
+            UIGraphicsBeginImageContextWithOptions(imageSize, NO, 0);
+            CGContextRef context = UIGraphicsGetCurrentContext();
+            
+            CGContextClipToMask(context, frame, alphaMask);
+            
+            [originalImage drawInRect:frame];
+            
+            UIImage *maskedImage = UIGraphicsGetImageFromCurrentImageContext();
+            UIGraphicsEndImageContext();
+            
+            CGImageRelease(alphaMask);
+            
+            return maskedImage;
+        }
+    };
+}
+
+extern asimagenode_modification_block_t ASImageNodeTintColorModificationBlock(UIColor *color)
 {
   return ^(UIImage *originalImage) {
     ASGraphicsBeginImageContextWithOptions(originalImage.size, NO, originalImage.scale);

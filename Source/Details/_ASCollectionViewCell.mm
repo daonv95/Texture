@@ -18,15 +18,30 @@
 
 - (ASCellNode *)node
 {
-  return self.element.node;
+    static ASCellNode *temp = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        temp = [[ASCellNode alloc] init];
+    });
+    
+    ASCellNode * ret = self.element.nodeIfAllocated;
+    if (ret) {
+        return ret;
+    } else {
+        return temp;
+    }
 }
 
 - (void)setElement:(ASCollectionElement *)element
 {
   ASDisplayNodeAssertMainThread();
-  ASCellNode *node = element.node;
-  node.layoutAttributes = _layoutAttributes;
-  _element = element;
+    
+    _element = element;
+    
+    ASCellNode *node = element.nodeIfAllocated;
+    if (node) {
+        node.layoutAttributes = _layoutAttributes;
+    }
   
   [node __setSelectedFromUIKit:self.selected];
   [node __setHighlightedFromUIKit:self.highlighted];
@@ -69,6 +84,7 @@
   self.layoutAttributes = nil;
 
   // Need to clear element before UIKit calls setSelected:NO / setHighlighted:NO on its cells
+    self.element.allocNodeBlockCallBack = nil;
   self.element = nil;
   [super prepareForReuse];
 }

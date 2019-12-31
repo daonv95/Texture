@@ -81,6 +81,10 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (nullable id<ASSectionContext>)contextForSection:(NSInteger)section AS_WARN_UNUSED_RESULT;
 
+// Trigger a relayout all node if viewSize changed
+// Default: NO
+@property (atomic) BOOL recalculateCellLayoutWhenViewSizeChanged;
+
 @end
 
 @interface ASCollectionView (Deprecated)

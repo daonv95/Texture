@@ -757,7 +757,7 @@
 - (ASCellNode *)nodeForItemAtIndexPath:(NSIndexPath *)indexPath
 {
   [self reloadDataInitiallyIfNeeded];
-  return [self.dataController.pendingMap elementForItemAtIndexPath:indexPath].node;
+  return [self.dataController.pendingMap elementForItemAtIndexPath:indexPath].nodeIfAllocated;
 }
 
 - (id)nodeModelForItemAtIndexPath:(NSIndexPath *)indexPath

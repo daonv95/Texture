@@ -9,6 +9,9 @@
 
 #import <AsyncDisplayKit/ASDataController.h>
 #import <AsyncDisplayKit/ASTraitCollection.h>
+#import <AsyncDisplayKit/ASCellNode.h>
+
+typedef void (^BlockCallBack_t)(ASCollectionElement * _Nonnull);
 
 @class ASDisplayNode;
 @protocol ASRangeManagingNode;
@@ -23,6 +26,12 @@ AS_SUBCLASSING_RESTRICTED
 @property (nonatomic, weak, readonly) id<ASRangeManagingNode> owningNode;
 @property (nonatomic) ASPrimitiveTraitCollection traitCollection;
 @property (nullable, nonatomic, readonly) id nodeModel;
+@property (nonatomic, assign) CGSize calculatedSize;
+@property (nonatomic, assign) BOOL shouldUseUIKitCell;
+@property (nonatomic, assign) BOOL markNeedAllocate;
+@property (nonatomic, assign) BOOL markNeedDeallocate;
+@property (atomic, copy, nullable) BlockCallBack_t allocNodeBlockCallBack;
+@property (nonatomic, assign) ASInterfaceState nodeInterfaceState;
 
 - (instancetype)initWithNodeModel:(nullable id)nodeModel
                         nodeBlock:(ASCellNodeBlock)nodeBlock
@@ -41,6 +50,15 @@ AS_SUBCLASSING_RESTRICTED
  * @return The node, if the node block has been run already.
  */
 @property (nullable, readonly) ASCellNode *nodeIfAllocated;
+
+- (void)exitInterfaceState:(ASInterfaceState)nodeInterfaceState;
+
+- (void)removeNode;
+
+/**
+ * Measure and layout the cellNode in element with the constrained size range.
+ */
+- (void)layoutNodeWithConstrainedSize:(ASSizeRange)constrainedSize;
 
 @end
 

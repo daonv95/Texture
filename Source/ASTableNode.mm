@@ -633,10 +633,10 @@ ASLayoutElementCollectionTableSetTraitCollection(_environmentStateLock)
   return [self.dataController.pendingMap indexPathForElement:cellNode.collectionElement];
 }
 
-- (ASCellNode *)nodeForRowAtIndexPath:(NSIndexPath *)indexPath
+- (nullable ASCellNode *)nodeForRowAtIndexPath:(NSIndexPath *)indexPath
 {
   [self reloadDataInitiallyIfNeeded];
-  return [self.dataController.pendingMap elementForItemAtIndexPath:indexPath].node;
+  return [self.dataController.pendingMap elementForItemAtIndexPath:indexPath].nodeIfAllocated;
 }
 
 - (CGRect)rectForRowAtIndexPath:(NSIndexPath *)indexPath

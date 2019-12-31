@@ -8,11 +8,19 @@
 //
 
 #import <AsyncDisplayKit/ASCollectionLayoutDelegate.h>
+#import <AsyncDisplayKit/ASDimension.h>
+
+@class ASCollectionFlowLayoutDelegate;
 
 NS_ASSUME_NONNULL_BEGIN
 
-AS_SUBCLASSING_RESTRICTED
+@protocol ASCollectionFlowLayoutDelegateConstraintSizeProvider <NSObject>
 
+- (ASSizeRange)collectionFlowLayoutDelegate:(ASCollectionFlowLayoutDelegate *)collectionFlowLayoutDelegate constrainedSizeForItemAtIndexPath:(NSIndexPath *)indexPath;
+
+@end
+
+AS_SUBCLASSING_RESTRICTED
 /**
  * A thread-safe, high performant layout delegate that arranges items into a flow layout. 
  * It uses a concurrent and multi-line ASStackLayoutSpec under the hood. Thus, per-child flex properties (i.e alignSelf, 
@@ -20,6 +28,8 @@ AS_SUBCLASSING_RESTRICTED
  * to calculate the final collection layout.
  */
 @interface ASCollectionFlowLayoutDelegate : NSObject <ASCollectionLayoutDelegate>
+
+@property (nonatomic, weak) id<ASCollectionFlowLayoutDelegateConstraintSizeProvider> constraintSizeProvider;
 
 - (instancetype)initWithScrollableDirections:(ASScrollDirection)scrollableDirections NS_DESIGNATED_INITIALIZER;
 

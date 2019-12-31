@@ -199,6 +199,31 @@ typedef UIImage * _Nullable (^asimagenode_modification_block_t)(UIImage *image);
 AS_EXTERN asimagenode_modification_block_t ASImageNodeRoundBorderModificationBlock(CGFloat borderWidth, UIColor * _Nullable borderColor);
 
 /**
+ * @abstract Image modification block that add a round corner to an image.
+ *
+ * @param cornerRadius Radius or the corners.
+ * @param imageSize Size of image.
+ * @param borderWidth The width of the round border to draw, or zero if no border is desired.
+ * @param borderColor What colour border to draw.
+ *
+ * @see <imageModificationBlock>
+ *
+ * @return An ASImageNode image modification block.
+ */
+AS_EXTERN asimagenode_modification_block_t ASImageNodeRoundCornerBorderModificationBlock(CGFloat cornerRadius, CGSize imageSize, CGFloat borderWidth, UIColor * _Nullable borderColor);
+
+/**
+ * @abstract Image modification block that mask the image with the given mask.
+ *
+ * @param maskImage Radius or the corners.
+ *
+ * @see <imageModificationBlock>
+ *
+ * @return An ASImageNode image modification block.
+ */
+AS_EXTERN asimagenode_modification_block_t ASImageNodeMaskImageModificationBlock(UIImage *maskImage, CGSize imageSize);
+
+/**
  * @abstract Image modification block that applies a tint color à la UIImage configured with
  * renderingMode set to UIImageRenderingModeAlwaysTemplate.
  *
