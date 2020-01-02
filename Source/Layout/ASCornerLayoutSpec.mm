@@ -46,6 +46,44 @@ CGPoint as_calculatedCornerOriginIn(CGRect baseFrame, CGSize cornerSize, ASCorne
     cornerOrigin.y = baseOrigin.y + baseSize.height - cornerSize.height / (internalBottom ? 1 : 2);
   }
   
+  // Center vertical/horizontal:
+  if (cornerLocation & ASCornerLayoutLocationCenterVertical) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationTopRight)) {
+      cornerOrigin.y += baseSize.height/2;
+    } else if ((cornerLocation & ASCornerLayoutLocationBottomLeft) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.y -= baseSize.height/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationCenterHorizontal) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationBottomLeft)) {
+      cornerOrigin.x += baseSize.width/2;
+    } else if ((cornerLocation & ASCornerLayoutLocationTopRight) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.x -= baseSize.width/2;
+    }
+  }
+  
+  // External top/left/bottom/right:
+  if (cornerLocation & ASCornerLayoutLocationExternalTop) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationTopRight)) {
+      cornerOrigin.y -= cornerSize.height/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationExternalLeft) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationBottomLeft)) {
+      cornerOrigin.x -= cornerSize.width/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationExternalBottom) {
+    if ((cornerLocation & ASCornerLayoutLocationBottomLeft) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.y += cornerSize.height/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationExternalRight) {
+    if ((cornerLocation & ASCornerLayoutLocationTopRight) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.x += cornerSize.width/2;
+    }
+  }
+  
   cornerOrigin.x += offset.x;
   cornerOrigin.y += offset.y;
   
