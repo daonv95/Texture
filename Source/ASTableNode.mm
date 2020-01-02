@@ -628,6 +628,11 @@ ASLayoutElementCollectionTableSetTraitCollection(_environmentStateLock)
   return self.isNodeLoaded ? [self.view visibleNodes] : @[];
 }
 
+- (nullable id)nodeModelForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    [self reloadDataInitiallyIfNeeded];
+}
+
 - (NSIndexPath *)indexPathForNode:(ASCellNode *)cellNode
 {
   return [self.dataController.pendingMap indexPathForElement:cellNode.collectionElement];

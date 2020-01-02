@@ -391,9 +391,20 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable __kindof ASCellNode *)nodeForRowAtIndexPath:(NSIndexPath *)indexPath AS_WARN_UNUSED_RESULT;
 
 /**
+ * Retrieves the node-model for the item at the given index path, if any.
+ *
+ * @param indexPath The index path of the requested item.
+ *
+ * @return The node-model for the given item, or @c nil if no item exists at the specified path or no node-model was provided.
+ *
+ * @warning This API is beta and subject to change. We'll try to provide an easy migration path.
+ */
+- (nullable id)nodeModelForRowAtIndexPath:(NSIndexPath *)indexPath AS_WARN_UNUSED_RESULT;
+
+/**
  * Similar to -indexPathForCell:.
  *
- * @param cellNode a node for a row.
+ * @param cellNode a node for a row. 
  *
  * @return The index path to this row, if it exists.
  *
@@ -496,6 +507,17 @@ NS_ASSUME_NONNULL_BEGIN
  * @see @c numberOfSectionsInTableView:
  */
 - (NSInteger)tableNode:(ASTableNode *)tableNode numberOfRowsInSection:(NSInteger)section;
+
+/**
+ * --BETA--
+ * Asks the data source for a view-model for the item at the given index path.
+ *
+ * @param collectionNode The sender.
+ * @param indexPath The index path of the item.
+ *
+ * @return An object that contains all the data for this item.
+ */
+- (nullable id)tableNode:(ASTableNode *)tableNode nodeModelForRowAtIndexPath:(NSIndexPath *)indexPath;
 
 /**
  * Asks the data source for a block to create a node to represent the row at the given index path.

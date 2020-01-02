@@ -284,6 +284,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     unsigned int tableViewNumberOfRowsInSection:1;
     unsigned int tableViewNodeBlockForRow:1;
     unsigned int tableNodeNodeBlockForRow:1;
+    unsigned int nodeModelForRow:1;
     unsigned int tableViewNodeForRow:1;
     unsigned int tableNodeNodeForRow:1;
     unsigned int tableViewCanMoveRow:1;
@@ -468,6 +469,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     _asyncDataSourceFlags.tableNodeNodeForRow = [_asyncDataSource respondsToSelector:@selector(tableNode:nodeForRowAtIndexPath:)];
     _asyncDataSourceFlags.tableViewNodeBlockForRow = [_asyncDataSource respondsToSelector:@selector(tableView:nodeBlockForRowAtIndexPath:)];
     _asyncDataSourceFlags.tableNodeNodeBlockForRow = [_asyncDataSource respondsToSelector:@selector(tableNode:nodeBlockForRowAtIndexPath:)];
+      _asyncDataSourceFlags.nodeModelForRow = [_asyncDataSource respondsToSelector:@selector(tableNode:nodeModelForRowAtIndexPath:)];
     _asyncDataSourceFlags.tableViewCanMoveRow = [_asyncDataSource respondsToSelector:@selector(tableView:canMoveRowAtIndexPath:)];
     _asyncDataSourceFlags.tableViewMoveRow = [_asyncDataSource respondsToSelector:@selector(tableView:moveRowAtIndexPath:toIndexPath:)];
     _asyncDataSourceFlags.sectionIndexMethods = [_asyncDataSource respondsToSelector:@selector(sectionIndexTitlesForTableView:)] && [_asyncDataSource respondsToSelector:@selector(tableView:sectionForSectionIndexTitle:atIndex:)];
@@ -1875,7 +1877,12 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 - (id)dataController:(ASDataController *)dataController nodeModelForItemAtIndexPath:(NSIndexPath *)indexPath
 {
   // Not currently supported for tables. Will be added when the collection API stabilizes.
-  return nil;
+    if (!_asyncDataSourceFlags.nodeModelForRow) {
+        return nil;
+    }
+    
+    GET_TABLENODE_OR_RETURN(tableNode, nil);
+    return [_asyncDataSource tableNode:tableNode nodeModelForRowAtIndexPath:indexPath];
 }
 
 - (ASCellNodeBlock)dataController:(ASDataController *)dataController nodeBlockAtIndexPath:(NSIndexPath *)indexPath shouldAsyncLayout:(BOOL *)shouldAsyncLayout
