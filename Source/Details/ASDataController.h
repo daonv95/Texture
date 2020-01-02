@@ -125,6 +125,16 @@ AS_EXTERN NSString * const ASCollectionInvalidUpdateException;
  */
 - (void)dataController:(ASDataController *)dataController updateWithChangeSet:(_ASHierarchyChangeSet *)changeSet updates:(dispatch_block_t)updates;
 
+/**
+ * Called for check if element stills in maintain range
+ * This method can be called off main thread
+ *
+ * @param element Element that need to check
+ */
+- (BOOL)dataController:(ASDataController *)dataController checkElementIfStillInMaintainRange:(ASCollectionElement *)element;
+
+- (BOOL)dataController:(ASDataController *)dataController checkElementsIfStillInMaintainRange:(NSHashTable<ASCollectionElement *> *)elements;
+
 @end
 
 @protocol ASDataControllerLayoutDelegate <NSObject>
@@ -199,6 +209,13 @@ AS_EXTERN NSString * const ASCollectionInvalidUpdateException;
 @property (nonatomic, weak) id validationErrorSource;
 
 /**
+ * It is important to check this if this data controller is relayouting all of the node
+ *
+ * to prevent mutiple call to -relayoutAllNodes that lead to thread-safety crash
+ */
+@property (nonatomic, readonly) BOOL isRelayoutAllNode;
+
+/**
  Delegate to notify when data is updated.
  */
 @property (nonatomic, weak) id<ASDataControllerDelegate> delegate;
@@ -238,6 +255,12 @@ AS_EXTERN NSString * const ASCollectionInvalidUpdateException;
 
 - (void)updateWithChangeSet:(_ASHierarchyChangeSet *)changeSet;
 
+
+/**
+ Trigger a requery constraintSize for all nodes
+ */
+- (void)requeryConstraintSizeAllNodes;
+
 /**
  * Re-measures all loaded nodes in the backing store.
  * 
@@ -247,7 +270,11 @@ AS_EXTERN NSString * const ASCollectionInvalidUpdateException;
  * The invalidationBlock is called after flushing the ASMainSerialQueue, which ensures that any in-progress
  * layout calculations have been applied. The block will not be called if data hasn't been loaded.
  */
-- (void)relayoutAllNodesWithInvalidationBlock:(nullable void (^)(void))invalidationBlock;
+- (void)relayoutAllNodesWithInvalidationBlock:(nullable void (^)())invalidationBlock withCompletion:(nullable void (^)())completion;
+
+- (void)cancelRelayoutAllNodesIfAny;
+
+- (void)maintainUpdateWithEnterElements:(NSHashTable<ASCollectionElement *> *)enterElements andExitElement:(NSHashTable<ASCollectionElement *> *)exitElements;
 
 /**
  * Re-measures given nodes in the backing store.

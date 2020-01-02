@@ -242,6 +242,8 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
   BOOL _hasDataControllerLayoutDelegate;
 }
 
+@property (nonatomic) BOOL savedUserInteractionEnabled;
+
 @end
 
 @implementation ASCollectionView
@@ -292,12 +294,16 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
   _dataController = [[ASDataController alloc] initWithDataSource:self node:owningNode eventLog:eventLog];
   _dataController.delegate = _rangeController;
   
+  _savedUserInteractionEnabled = self.userInteractionEnabled;
+    
   _batchContext = [[ASBatchContext alloc] init];
   
   _leadingScreensForBatching = 2.0;
   
   _lastBoundsSizeUsedForMeasuringNodes = self.bounds.size;
   
+  _recalculateCellLayoutWhenViewSizeChanged = NO;
+    
   _layoutFacilitator = layoutFacilitator;
   
   _proxyDelegate = [[ASCollectionViewProxy alloc] initWithTarget:nil interceptor:self];
@@ -338,6 +344,15 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     [self setAsyncDataSource:nil];
   }
 
+    // Exit visible state for element
+    for (ASCollectionElement * element in _dataController.visibleMap.itemElements) {
+        if (ASInterfaceStateIncludesVisible(element.nodeInterfaceState)) {
+            [element exitInterfaceState:ASInterfaceStateVisible];
+        }
+    }
+    
+    [_dataController cancelRelayoutAllNodesIfAny];
+    
   // Data controller & range controller may own a ton of nodes, let's deallocate those off-main.
   ASPerformBackgroundDeallocation(&_dataController);
   ASPerformBackgroundDeallocation(&_rangeController);
@@ -380,7 +395,7 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
   [_dataController relayoutAllNodesWithInvalidationBlock:^{
     [self.collectionViewLayout invalidateLayout];
     [self invalidateFlowLayoutDelegateMetrics];
-  }];
+  } withCompletion:nil];
 }
 
 - (BOOL)isProcessingUpdates
@@ -678,6 +693,22 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 }
 #pragma clang diagnostic pop
 
+- (CGSize)_sizeForElementHack:(ASCollectionElement *)element {
+    ASDisplayNodeAssertMainThread();
+    if (element == nil) {
+        return CGSizeZero;
+    }
+    
+    CGSize size = element.calculatedSize;
+    if (element.nodeIfAllocated) {
+        if (! CGSizeEqualToSize(CGSizeZero, element.nodeIfAllocated.calculatedSize)) {
+            return element.nodeIfAllocated.calculatedSize;
+        }
+    }
+    
+    return size;
+}
+
 /// Uses latest size range from data source and -layoutThatFits:.
 - (CGSize)sizeForElement:(ASCollectionElement *)element
 {
@@ -686,22 +717,26 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     return CGSizeZero;
   }
 
-  ASCellNode *node = element.node;
-  ASDisplayNodeAssertNotNil(node, @"Node must not be nil!");
+  ASCellNode *node = element.nodeIfAllocated;
+  // ASDisplayNodeAssertNotNil(node, @"Node must not be nil!"); // TODO: investigate why assert
 
-  BOOL useUIKitCell = node.shouldUseUIKitCell;
+  BOOL useUIKitCell = element.shouldUseUIKitCell;
   if (useUIKitCell) {
     ASWrapperCellNode *wrapperNode = (ASWrapperCellNode *)node;
-    if (wrapperNode.sizeForItemBlock) {
-      return wrapperNode.sizeForItemBlock(wrapperNode, element.constrainedSize.max);
+    if (wrapperNode) {
+    	if (wrapperNode.sizeForItemBlock) {
+      		return wrapperNode.sizeForItemBlock(wrapperNode, element.constrainedSize.max);
+    	} else {
+      	// In this case, it is possible the model indexPath for this element will be nil. Attempt to convert it,
+     	// and call out to the delegate directly. If it has been deleted from the model, the size returned will be the layout's default.
+      	NSIndexPath *indexPath = [_dataController.visibleMap indexPathForElement:element];
+      	return [self _sizeForUIKitCellWithKind:element.supplementaryElementKind atIndexPath:indexPath];
+    	}
     } else {
-      // In this case, it is possible the model indexPath for this element will be nil. Attempt to convert it,
-      // and call out to the delegate directly. If it has been deleted from the model, the size returned will be the layout's default.
-      NSIndexPath *indexPath = [_dataController.visibleMap indexPathForElement:element];
-      return [self _sizeForUIKitCellWithKind:element.supplementaryElementKind atIndexPath:indexPath];
+    	return [self _sizeForElementHack:element];
     }
   } else {
-    return [node layoutThatFits:element.constrainedSize].size;
+      return [self _sizeForElementHack:element];
   }
 }
 
@@ -718,7 +753,7 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 
 - (ASCellNode *)nodeForItemAtIndexPath:(NSIndexPath *)indexPath
 {
-  return [_dataController.visibleMap elementForItemAtIndexPath:indexPath].node;
+  return [_dataController.visibleMap elementForItemAtIndexPath:indexPath].nodeIfAllocated;
 }
 
 - (NSIndexPath *)convertIndexPathFromCollectionNode:(NSIndexPath *)indexPath waitingIfNeeded:(BOOL)wait
@@ -1176,7 +1211,7 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 {
   UICollectionViewCell *cell = nil;
   ASCollectionElement *element = [_dataController.visibleMap elementForItemAtIndexPath:indexPath];
-  ASCellNode *node = element.node;
+  ASCellNode *node = element.nodeIfAllocated;
   ASWrapperCellNode *wrapperNode = (node.shouldUseUIKitCell ? (ASWrapperCellNode *)node : nil);
   BOOL shouldDequeueExternally = _asyncDataSourceFlags.interopAlwaysDequeue || (_asyncDataSourceFlags.interop && wrapperNode);
 
@@ -1188,14 +1223,40 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     cell = [self dequeueReusableCellWithReuseIdentifier:kReuseIdentifier forIndexPath:indexPath];
   }
 
-  ASDisplayNodeAssert(element != nil, @"Element should exist. indexPath = %@, collectionDataSource = %@", indexPath, self);
-  ASDisplayNodeAssert(cell != nil, @"UICollectionViewCell must not be nil. indexPath = %@, collectionDataSource = %@", indexPath, self);
-
-  if (_ASCollectionViewCell *asCell = ASDynamicCastStrict(cell, _ASCollectionViewCell)) {
+  if (_ASCollectionViewCell *asCell = ASDynamicCast(cell, _ASCollectionViewCell)) {
     asCell.element = element;
-    [_rangeController configureContentView:cell.contentView forCellNode:node];
+      
+    if (node) {
+      ASDisplayNodeAssert(element != nil, @"Element should exist. indexPath = %@, collectionDataSource = %@", indexPath, self);
+      [_rangeController configureContentView:cell.contentView forCellNode:node];
+    }
+    else {
+      NSIndexPath *oldIndexPath = indexPath;
+            
+      __weak ASCollectionView *weakSelf = self;
+      element.allocNodeBlockCallBack = ^(ASCollectionElement * _Nonnull elem) {
+        ASPerformBlockOnMainThread(^{
+          __strong ASCollectionView * strongSelf = weakSelf;
+                    
+          ASCellNode * node = elem.nodeIfAllocated;
+          NSIndexPath *currentIndexPath = [weakSelf indexPathForCell:cell];
+                    
+          if ([oldIndexPath compare:currentIndexPath] != NSOrderedSame)
+            return;
+          
+          if (_ASCollectionViewCell *asCell = ASDynamicCast(cell, _ASCollectionViewCell)) { // TODO: check cần support wrapper ASWrapperCellNode ko
+            if (asCell.contentView) {
+              asCell.element = elem;
+              node.scrollView = weakSelf;
+                                
+              [strongSelf->_rangeController configureContentView:cell.contentView forCellNode:node];
+            }
+          }
+        });
+      };
+    }
   }
-  
+    
   return cell;
 }
 
@@ -1215,15 +1276,16 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
   }
 
   ASCollectionElement *element = cell.element;
-  if (element) {
-    ASDisplayNodeAssertTrue([_dataController.visibleMap elementForItemAtIndexPath:indexPath] == element);
-    [_visibleElements addObject:element];
-  } else {
-    ASDisplayNodeAssert(NO, @"Unexpected nil element for willDisplayCell: %@, %@, %@", rawCell, self, indexPath);
-    return;
-  }
 
-  ASCellNode *cellNode = element.node;
+    if (element) {
+        ASDisplayNodeAssertTrue([_dataController.visibleMap elementForItemAtIndexPath:indexPath] == element);
+        [_visibleElements addObject:element];
+    } else {
+        ASDisplayNodeAssert(NO, @"Unexpected nil element for willDisplayCell: %@, %@, %@", rawCell, self, indexPath);
+        return;
+    }
+    ASCellNode *cellNode = cell.node;
+    
   cellNode.scrollView = collectionView;
 
   // Update the selected background view in collectionView:willDisplayCell:forItemAtIndexPath: otherwise it could be too
@@ -1276,15 +1338,16 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 
   // Retrieve the element from cell instead of visible map because at this point visible map could have been updated and no longer holds the element.
   ASCollectionElement *element = cell.element;
-  if (element) {
-    [_visibleElements removeObject:element];
-  } else {
-    ASDisplayNodeAssert(NO, @"Unexpected nil element for didEndDisplayingCell: %@, %@, %@", rawCell, self, indexPath);
-    return;
-  }
-
-  ASCellNode *cellNode = element.node;
-
+    
+    if (element) {
+        [_visibleElements removeObject:element];
+    } else {
+        ASDisplayNodeAssert(NO, @"Unexpected nil element for didEndDisplayingCell: %@, %@, %@", rawCell, self, indexPath);
+        return;
+    }
+    
+    ASCellNode *cellNode = cell.node;
+    
   if (_asyncDelegateFlags.collectionNodeDidEndDisplayingItem) {
     if (ASCollectionNode *collectionNode = self.collectionNode) {
     	[_asyncDelegate collectionNode:collectionNode didEndDisplayingItemWithNode:cellNode];
@@ -2186,6 +2249,11 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 
 #pragma mark - ASRangeControllerDelegate
 
+- (void)rangeController:(ASRangeController *)rangeController elementsDidEnterMaintainRange:(NSHashTable<ASCollectionElement *> *)elementsEnter elementsDidExitMaintainRange:(NSHashTable<ASCollectionElement *> *)elementsExit {
+    
+    [_dataController maintainUpdateWithEnterElements:elementsEnter andExitElement:elementsExit];
+}
+
 - (BOOL)rangeControllerShouldUpdateRanges:(ASRangeController *)rangeController
 {
   return !ASCellLayoutModeIncludes(ASCellLayoutModeDisableRangeController);
@@ -2217,6 +2285,7 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     [_layoutFacilitator collectionViewWillEditCellsAtIndexPaths:change.indexPaths batched:YES];
   }
 
+    __weak __typeof__(self) weakSelf = self;
   ASPerformBlockWithoutAnimation(!changeSet.animated, ^{
     as_activity_scope(as_activity_create("Commit collection update", changeSet.rootActivity, OS_ACTIVITY_FLAG_DEFAULT));
     if (changeSet.includesReloadData) {

@@ -403,6 +403,7 @@
   
   ASDisplayNodeAssert(layer, @"Expect _layer to be not nil");
 
+    __weak __typeof__(self) weakSelf = self;
   // This block is called back on the main thread after rendering at the completion of the current async transaction, or immediately if !asynchronously
   asyncdisplaykit_async_transaction_operation_completion_block_t completionBlock = ^(id<NSObject> value, BOOL canceled){
     ASDisplayNodeCAssertMainThread();
@@ -412,7 +413,7 @@
       if (stretchable) {
         ASDisplayNodeSetResizableContents(layer, image);
       } else {
-        layer.contentsScale = self.contentsScale;
+        layer.contentsScale = weakSelf.contentsScale;
         layer.contents = (id)image.CGImage;
       }
       [self didDisplayAsyncLayer:self.asyncLayer];

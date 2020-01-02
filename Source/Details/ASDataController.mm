@@ -36,6 +36,8 @@
 #import <AsyncDisplayKit/ASDisplayNode+Subclasses.h>
 #import <AsyncDisplayKit/NSIndexSet+ASHelpers.h>
 
+#import "ASReallocOperation.h"
+
 //#define LOG(...) NSLog(__VA_ARGS__)
 #define LOG(...)
 
@@ -55,7 +57,8 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   id<ASDataControllerLayoutDelegate> _layoutDelegate;
 
   NSInteger _nextSectionID;
-  
+    NSUInteger _relayoutAllNodesTaskCount;
+    
   BOOL _itemCountsFromDataSourceAreValid;     // Main thread only.
   std::vector<NSInteger> _itemCountsFromDataSource;         // Main thread only.
   
@@ -64,7 +67,11 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   dispatch_queue_t _editingTransactionQueue;  // Serial background queue.  Dispatches concurrent layout and manages _editingNodes.
   dispatch_group_t _editingTransactionGroup;  // Group of all edit transaction blocks. Useful for waiting.
   std::atomic<int> _editingTransactionGroupCount;
-  
+    
+    dispatch_queue_t _operationManagerQueue;
+    dispatch_queue_t _edittingMaintainQueue;  // Serial background queue.
+    dispatch_semaphore_t _regulationSemaphore;
+    
   BOOL _initialReloadDataHasBeenCalled;
 
   BOOL _synchronized;
@@ -82,6 +89,12 @@ typedef void (^ASDataControllerSynchronizationBlock)();
 
 @property (copy) ASElementMap *pendingMap;
 @property (copy) ASElementMap *visibleMap;
+
+@property (nonatomic, readonly) NSOperationQueue *reallocOperationQueue;
+@property (nonatomic, readonly) NSOperationQueue *relayoutOperationQueue;
+@property (nonatomic, readonly) NSHashTable<NSOperation *> *normalReallocOperations;
+@property (nonatomic, readonly) NSHashTable<NSOperation *> *normalRelayoutOperations;
+
 @end
 
 @implementation ASDataController
@@ -97,6 +110,8 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   _node = node;
   _dataSource = dataSource;
   
+    _regulationSemaphore = dispatch_semaphore_create([NSProcessInfo processInfo].activeProcessorCount * 5);
+    
   _dataSourceFlags.supplementaryNodeKindsInSections = [_dataSource respondsToSelector:@selector(dataController:supplementaryNodeKindsInSections:)];
   _dataSourceFlags.supplementaryNodesOfKindInSection = [_dataSource respondsToSelector:@selector(dataController:supplementaryNodesOfKind:inSection:)];
   _dataSourceFlags.supplementaryNodeBlockOfKindAtIndexPath = [_dataSource respondsToSelector:@selector(dataController:supplementaryNodeBlockOfKind:atIndexPath:shouldAsyncLayout:)];
@@ -112,6 +127,8 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   
   _nextSectionID = 0;
   
+    _relayoutAllNodesTaskCount = 0;
+    
   _mainSerialQueue = [[ASMainSerialQueue alloc] init];
 
   _synchronized = YES;
@@ -121,7 +138,24 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   _editingTransactionQueue = dispatch_queue_create(queueName, DISPATCH_QUEUE_SERIAL);
   dispatch_queue_set_specific(_editingTransactionQueue, &kASDataControllerEditingQueueKey, &kASDataControllerEditingQueueContext, NULL);
   _editingTransactionGroup = dispatch_group_create();
-  
+    
+    const char *maintainQueueName = [[NSString stringWithFormat:@"com.VNG.ASDataController.edittingTransactionQueue:%p", self] cStringUsingEncoding:NSASCIIStringEncoding];
+    _edittingMaintainQueue = dispatch_queue_create(maintainQueueName, DISPATCH_QUEUE_SERIAL);
+    
+    const char *operationManagerQueue = [[NSString stringWithFormat:@"com.VNG.ASDataController.operationManagerQueue:%p", self] cStringUsingEncoding:NSASCIIStringEncoding];
+    _operationManagerQueue = dispatch_queue_create(operationManagerQueue, DISPATCH_QUEUE_CONCURRENT);
+    
+    _reallocOperationQueue = [[NSOperationQueue alloc] init];
+    _reallocOperationQueue.maxConcurrentOperationCount = 10;
+    _reallocOperationQueue.qualityOfService = NSQualityOfServiceUtility;
+    
+    _relayoutOperationQueue = [[NSOperationQueue alloc] init];
+    _relayoutOperationQueue.maxConcurrentOperationCount = 1; // Serial execute
+    _relayoutOperationQueue.qualityOfService = NSQualityOfServiceUtility;
+    
+    _normalReallocOperations = [[NSHashTable alloc] init];
+    _normalRelayoutOperations = [[NSHashTable alloc] init];
+    
   return self;
 }
 
@@ -139,45 +173,101 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   }
 }
 
+- (NSUInteger)relayoutAllNodesTaskCount {
+    ASDisplayNodeAssertMainThread();
+    return _relayoutAllNodesTaskCount;
+}
+
+- (void)setRelayoutAllNodesTaskCount:(NSUInteger)relayoutAllNodesTaskCount {
+    ASDisplayNodeAssertMainThread();
+    if( _relayoutAllNodesTaskCount != relayoutAllNodesTaskCount) {
+        _relayoutAllNodesTaskCount = relayoutAllNodesTaskCount;
+    }
+}
+
+- (void)dealloc {
+    // Cancel relayoutOperation
+    for (NSBlockOperation *operation in self.normalRelayoutOperations) {
+        [operation cancel];
+    }
+    [self.normalRelayoutOperations removeAllObjects];
+    
+    // Cancel reallocOperation
+    for (ASReallocOperation *operation in self.normalReallocOperations) {
+        [operation cancel];
+    }
+    [self.normalReallocOperations removeAllObjects];
+}
+
 #pragma mark - Cell Layout
 
-- (void)_allocateNodesFromElements:(NSArray<ASCollectionElement *> *)elements
-{
-  ASSERT_ON_EDITING_QUEUE;
-  
-  NSUInteger nodeCount = elements.count;
-  __weak id<ASDataControllerSource> weakDataSource = _dataSource;
-  if (nodeCount == 0 || weakDataSource == nil) {
-    return;
-  }
+- (void)_allocateNodesFromElements:(NSArray<ASCollectionElement *> *)elements {
+    
+    ASSERT_ON_EDITING_QUEUE;
+    
+    [self _allocateNodesFromElements:elements deleteNodeIfOutOfMaintainRange:NO];
+}
 
-  ASSignpostStart(ASSignpostDataControllerBatch);
-
-  {
-    as_activity_create_for_scope("Data controller batch");
-
+- (void)_allocateNodesFromElements:(NSArray<ASCollectionElement *> *)elements deleteNodeIfOutOfMaintainRange:(BOOL)needDeleteNode {
+    
+    NSUInteger nodeCount = elements.count;
+    __weak id<ASDataControllerSource> weakDataSource = _dataSource;
+    if (nodeCount == 0 || weakDataSource == nil) {
+        return;
+    }
+    
+    ASSignpostStart(ASSignpostDataControllerBatch);
+    
+    {
+        as_activity_create_for_scope("Data controller batch");
+        
+        __weak __typeof__(self) weakSelf = self;
     dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
     NSUInteger threadCount = 0;
     if ([_dataSource dataControllerShouldSerializeNodeCreation:self]) {
       threadCount = 1;
     }
     ASDispatchApply(nodeCount, queue, threadCount, ^(size_t i) {
-      __strong id<ASDataControllerSource> strongDataSource = weakDataSource;
-      if (strongDataSource == nil) {
-        return;
-      }
+            __strong id<ASDataControllerSource> strongDataSource = weakDataSource;
+            if (strongDataSource == nil) {
+                return;
+            }
+            // Allocate the node.
+            unowned ASCollectionElement *element = elements[i];
+            [self _allocateNodeFromElement:element];
+            
+            if (needDeleteNode) {
+                BOOL stillInMaintain = [weakSelf.delegate dataController:weakSelf checkElementIfStillInMaintainRange:element];
+                if (stillInMaintain == NO) {
+                    [element removeNode];
+                    NSLog(@"REMOVE");
+                }
+            }
+        });
+    }
+    
+    ASSignpostEndCustom(ASSignpostDataControllerBatch, self, 0, (weakDataSource != nil ? ASSignpostColorDefault : ASSignpostColorRed));
+}
 
-      unowned ASCollectionElement *element = elements[i];
-      unowned ASCellNode *node = element.node;
-      // Layout the node if the size range is valid.
-      ASSizeRange sizeRange = element.constrainedSize;
-      if (ASSizeRangeHasSignificantArea(sizeRange)) {
-        [self _layoutNode:node withConstrainedSize:sizeRange];
-      }
-    });
-  }
+- (ASCellNode *)_allocateNodeFromElement:(ASCollectionElement *)element {
+    
+    if (element.nodeIfAllocated) {
+        return element.nodeIfAllocated;
+    }
 
-  ASSignpostEndCustom(ASSignpostDataControllerBatch, self, 0, (weakDataSource != nil ? ASSignpostColorDefault : ASSignpostColorRed));
+    unowned ASCellNode *node = element.node;
+
+    if (element.nodeIfAllocated) {
+        // Layout the node if the size range is valid.
+        ASSizeRange sizeRange = element.constrainedSize;
+        if (ASSizeRangeHasSignificantArea(sizeRange)) {
+            [element layoutNodeWithConstrainedSize:sizeRange];
+        }
+    }
+
+  element.shouldUseUIKitCell = node.shouldUseUIKitCell;
+
+    return node;
 }
 
 /**
@@ -218,10 +308,11 @@ typedef void (^ASDataControllerSynchronizationBlock)();
       }
     }];
   } else if (_dataSourceFlags.supplementaryNodesOfKindInSection) {
+      __weak __typeof__(self) weakSelf = self;
     id<ASDataControllerSource> dataSource = _dataSource;
     [sections enumerateRangesUsingBlock:^(NSRange range, BOOL * _Nonnull stop) {
       for (NSUInteger sectionIndex = range.location; sectionIndex < NSMaxRange(range); sectionIndex++) {
-        NSUInteger itemCount = [dataSource dataController:self supplementaryNodesOfKind:kind inSection:sectionIndex];
+        NSUInteger itemCount = [dataSource dataController:weakSelf supplementaryNodesOfKind:kind inSection:sectionIndex];
         for (NSUInteger i = 0; i < itemCount; i++) {
           [indexPaths addObject:[NSIndexPath indexPathForItem:i inSection:sectionIndex]];
         }
@@ -478,6 +569,107 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   return ASSizeRangeZero;
 }
 
+- (void)_cancelNeedlessOperations:(NSHashTable<NSOperation *> *)reallocOperations {
+    __weak ASDataController *weakSelf = self;
+    dispatch_sync(_operationManagerQueue, ^{
+        NSSet *operations = [reallocOperations copy];
+        for (ASReallocOperation *operation in operations) {
+            BOOL stillInMaintain = [weakSelf.delegate dataController:weakSelf checkElementsIfStillInMaintainRange:operation.needReallocElements];
+            if (! stillInMaintain) {
+                
+                [operation cancel];
+                [reallocOperations removeObject:operation];
+                
+                for (ASCollectionElement *element in operation.needReallocElements) {
+                    element.markNeedAllocate = NO;
+                }
+            }
+        }
+    });
+}
+
+- (void)maintainUpdateWithEnterElements:(NSHashTable<ASCollectionElement *> *)enterElements andExitElement:(NSHashTable<ASCollectionElement *> *)exitElements {
+    ASDisplayNodeAssertMainThread();
+    
+    __weak ASDataController * weakSelf = self;
+    
+    // Really important to update node interfaceState before going to remove it
+    for (ASCollectionElement * exitElement in exitElements) {
+        if (ASInterfaceStateIncludesVisible(exitElement.nodeInterfaceState)) {
+            [exitElement exitInterfaceState:ASInterfaceStateVisible];
+        }
+        exitElement.markNeedDeallocate = YES;
+    }
+    
+    for (ASCollectionElement * enterElement in enterElements) {
+        if (ASInterfaceStateIncludesVisible(enterElement.nodeInterfaceState)) {
+            [enterElement exitInterfaceState:ASInterfaceStateVisible];
+        }
+        enterElement.markNeedDeallocate = NO;
+    }
+    
+    dispatch_async(_edittingMaintainQueue, ^{
+        // Cancel reallocOperation
+        [weakSelf _cancelNeedlessOperations:weakSelf.normalReallocOperations];
+        
+        // deallocate
+        if (exitElements.count > 0) {
+            NSSet<ASCollectionElement *> * batchElems = ASSetByFlatMapping(exitElements, ASCollectionElement * elem, elem.nodeIfAllocated ? elem : nil);
+            if (batchElems.count > 0) {
+                for (ASCollectionElement * elem in batchElems) {
+                    BOOL stillInMaintain = [weakSelf.delegate dataController:weakSelf checkElementIfStillInMaintainRange:elem];
+                    if (! stillInMaintain) {
+                        [elem removeNode];
+                    }
+                }
+            }
+        }
+        
+        // Check for re-allocate cellnode
+        if (enterElements.count > 0) {
+            NSHashTable *batchElement = [[NSHashTable alloc] init];
+            for (ASCollectionElement * element in enterElements) {
+                if (element.nodeIfAllocated == nil) {
+                    element.markNeedAllocate = YES;
+                    [batchElement addObject:element];
+                }
+            }
+            
+            ASReallocOperation *operation = [[ASReallocOperation alloc] initWithElements:batchElement];
+            __weak ASReallocOperation *weakOperation = operation;
+            
+            [operation addExecutionBlock:^{
+                ASReallocOperation *strongOperation = weakOperation;
+                
+                if (!strongOperation.isCancelled) {
+                    
+                    NSHashTable<ASCollectionElement *> * elementsToAllocate = strongOperation.needReallocElements;
+                    
+                    if (elementsToAllocate.count > 0) {
+                        for (ASCollectionElement * elem in elementsToAllocate) {
+                            if (strongOperation.isCancelled) {
+                                break;
+                            }
+                            
+                            [weakSelf _allocateNodeFromElement:elem];
+                        }
+                    }
+                }
+                
+                dispatch_barrier_async(_operationManagerQueue, ^{
+                    [weakSelf.normalReallocOperations removeObject:strongOperation];
+                });
+            }];
+            
+            dispatch_barrier_async(_operationManagerQueue, ^{
+                [weakSelf.normalReallocOperations addObject:operation];
+            });
+            
+            [weakSelf.reallocOperationQueue addOperation:operation];
+        }
+    });
+}
+
 #pragma mark - Batching (External API)
 
 - (void)waitUntilAllUpdatesAreProcessed
@@ -582,8 +774,9 @@ typedef void (^ASDataControllerSynchronizationBlock)();
                            transactionQueueFlushDuration * 1000.0f, changeSet);
   NSTimeInterval changeSetStartTime = CACurrentMediaTime();
   NSString *changeSetDescription = ASObjectDescriptionMakeTiny(changeSet);
+    __weak __typeof__(self) weakSelf = self;
   [changeSet addCompletionHandler:^(BOOL finished) {
-    ASDataControllerLogEvent(self, @"finishedUpdate in %fms: %@",
+    ASDataControllerLogEvent(weakSelf, @"finishedUpdate in %fms: %@",
                              (CACurrentMediaTime() - changeSetStartTime) * 1000.0f, changeSetDescription);
   }];
 #endif
@@ -651,7 +844,7 @@ typedef void (^ASDataControllerSynchronizationBlock)();
         if (nodeIfAllocated.shouldUseUIKitCell) {
           // If the node exists and we know it is a passthrough cell, we know it will never have a .calculatedLayout.
           continue;
-        } else if (nodeIfAllocated.calculatedLayout == nil) {
+        } else if (nodeIfAllocated.calculatedLayout == nil && element.markNeedAllocate == YES) {
           // If the node hasn't been allocated, or it doesn't have a valid layout, let's process it.
           [elementsToProcess addObject:element];
         }
@@ -838,8 +1031,9 @@ typedef void (^ASDataControllerSynchronizationBlock)();
 
     NSString *kind = element.supplementaryElementKind ?: ASDataControllerRowNodeKind;
     ASSizeRange constrainedSize = [self constrainedSizeForNodeOfKind:kind atIndexPath:indexPathInPendingMap];
-    [self _layoutNode:node withConstrainedSize:constrainedSize];
-
+      
+    [element layoutNodeWithConstrainedSize:constrainedSize];
+      
     BOOL matchesSize = [dataSource dataController:self presentedSizeForElement:element matchesSize:node.frame.size];
     if (! matchesSize) {
       [nodesSizesChanged addObject:node];
@@ -847,17 +1041,49 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   }
 }
 
+- (void)requeryConstraintSizeAllNodes {
+    ASDisplayNodeAssertMainThread();
+    for (ASCollectionElement *element in _visibleMap) {
+        // Ignore this element if it is no longer in the latest data. It is still recognized in the UIKit world but will be deleted soon.
+        NSIndexPath *indexPathInPendingMap = [_pendingMap indexPathForElement:element];
+        if (indexPathInPendingMap == nil) {
+            continue;
+        }
+        
+        NSString *kind = element.supplementaryElementKind ?: ASDataControllerRowNodeKind;
+        ASSizeRange newConstrainedSize = [self constrainedSizeForNodeOfKind:kind atIndexPath:indexPathInPendingMap];
+        
+        if (ASSizeRangeHasSignificantArea(newConstrainedSize)) {
+            element.constrainedSize = newConstrainedSize;
+            // relayout node if node avaiable
+            if (element.nodeIfAllocated) {
+                [element layoutNodeWithConstrainedSize:newConstrainedSize];
+            }
+        }
+    }
+}
+
 - (void)relayoutAllNodesWithInvalidationBlock:(nullable void (^)())invalidationBlock
 {
-  ASDisplayNodeAssertMainThread();
-  if (!_initialReloadDataHasBeenCalled) {
-    return;
-  }
-  
-  // Can't relayout right away because _visibleMap may not be up-to-date,
-  // i.e there might be some nodes that were measured using the old constrained size but haven't been added to _visibleMap
-  LOG(@"Edit Command - relayoutRows");
-  [self _scheduleBlockOnMainSerialQueue:^{
+    [self relayoutAllNodesWithInvalidationBlock:invalidationBlock withCompletion:nil];
+}
+
+- (void)relayoutAllNodesWithInvalidationBlock:(nullable void (^)())invalidationBlock withCompletion:(void (^)())completion {
+    ASDisplayNodeAssertMainThread();
+    _relayoutAllNodesTaskCount++;
+    
+    if (!_initialReloadDataHasBeenCalled) {
+        _relayoutAllNodesTaskCount--;
+        if (completion) {
+            completion();
+        }
+        return;
+    }
+    
+    // Can't relayout right away because _visibleMap may not be up-to-date,
+    // i.e there might be some nodes that were measured using the old constrained size but haven't been added to _visibleMap
+    LOG(@"Edit Command - relayoutRows");
+    [self _scheduleBlockOnMainSerialQueue:^{
     // Because -invalidateLayout doesn't trigger any operations by itself, and we answer queries from UICollectionView using layoutThatFits:,
     // we invalidate the layout before we have updated all of the cells. Any cells that the collection needs the size of immediately will get
     // -layoutThatFits: with a new constraint, on the main thread, and synchronously calculate them. Meanwhile, relayoutAllNodes will update
@@ -865,46 +1091,121 @@ typedef void (^ASDataControllerSynchronizationBlock)();
     if (invalidationBlock) {
       invalidationBlock();
     }
-    [self _relayoutAllNodes];
-  }];
+        [self _relayoutAllNodesWithCompletion:completion];
+    }];
 }
 
-- (void)_relayoutAllNodes
-{
-  ASDisplayNodeAssertMainThread();
-  // Aggressively repopulate all supplemtary elements
-  // Assuming this method is run on the main serial queue, _pending and _visible maps are synced and can be manipulated directly.
-  ASDisplayNodeAssert(_visibleMap == _pendingMap, @"Expected visible and pending maps to be synchronized: %@", self);
-
-  ASMutableElementMap *newMap = [_pendingMap mutableCopy];
+- (void)_relayoutAllNodesWithCompletion:(void (^)())completion {
+    ASDisplayNodeAssertMainThread();
+    
+    [self requeryConstraintSizeAllNodes];
+    
+    __weak ASDataController * weakSelf = self;
+    [self _scheduleBlockOnMainSerialQueue:^{
+        
+        // Cancel current relayout nodes tasks if any
+        [weakSelf cancelRelayoutAllNodesIfAny];
+	
+	ASMutableElementMap *newMap = [_pendingMap mutableCopy];
   [self _updateSupplementaryNodesIntoMap:newMap
                          traitCollection:[self.node primitiveTraitCollection]
                    shouldFetchSizeRanges:YES
                              previousMap:_pendingMap];
   _pendingMap = [newMap copy];
   _visibleMap = _pendingMap;
+        
+        // This code snipe run in the serial queue is the need to prevent thread-safety crash
+        // when user rotate mutiple time but this snipe of code is not completely done
+        //
+        // This machanism use NSOperationQueue cause the fact that NSOperationQueue can cancel
+        // current very heavy running tasks -> very effective if tableView/collectionView change
+        // frame mutiple time.
+        NSBlockOperation *operation = [[NSBlockOperation alloc] init];
+        __weak NSBlockOperation *weakOperation = operation;
+        [operation addExecutionBlock:^{
+            
+            ESTIMATE_TIME_START;
+            
+            __block __unused os_activity_scope_state_s preparationScope = {}; // unused if deployment target < iOS10
+            as_activity_scope_enter(as_activity_create("Relayout all node for collection frame change", AS_ACTIVITY_CURRENT, OS_ACTIVITY_FLAG_DEFAULT), &preparationScope);
+            
+            for (int i = 0; i < weakSelf.visibleMap.itemElements.count; i++) {
+                if (weakOperation.isCancelled) {
+                    // Cancel current relayout process
+                    // if tableView/collectionView change frame
+                    // mutiple time. This will save a ton of processing time
+                } else {
+                    // @autoreleasepool is really important
+                    // normally object will dealloc as soon as object can be dealloc
+                    // but autoreleasepool will force it dealloc immediately
+                    // INFO: https://stackoverflow.com/questions/12827319/forcing-an-object-to-deallocate-under-arc
+                    // INFO: https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/MemoryMgmt/Articles/mmAutoreleasePools.html
+                    //
+                    // Currently it's a memory increase if we are on a debug build
+                    // due to Texture Event-logging. Release build will not have
+                    // memory issue
+                    // INFO: https://github.com/TextureGroup/Texture/issues/211
+                    @autoreleasepool {
+                        ASCollectionElement * element = weakSelf.visibleMap.itemElements[i];
+                        ASCellNode *node = element.node;
+                        if (node) {
+                            [element layoutNodeWithConstrainedSize:element.constrainedSize];
+                        }
+                        
+                        // Check if node is being in maintain range or not
+                        BOOL stillInMaintain = [weakSelf.delegate dataController:weakSelf checkElementIfStillInMaintainRange:element];
+                        if (stillInMaintain == NO) {
+                            [element removeNode];
+                        }
+                    }
+                }
+            }
+            
+            if (completion) {
+                ASPerformBlockOnMainThread(^{
+                    weakSelf.relayoutAllNodesTaskCount--;
+                    completion();
+                });
+            } else {
+                ASPerformBlockOnMainThread(^{
+                    weakSelf.relayoutAllNodesTaskCount--;
+                });
+            }
+            as_activity_scope_leave(&preparationScope);
+            
+            NSUInteger num = weakSelf.visibleMap.itemElements.count;
+            NSString * logS = [NSString stringWithFormat:@"Relayout %lu", num];
+            ESTIMATE_TIME_END(logS);
+            
+            dispatch_barrier_async(_operationManagerQueue, ^{
+                [weakSelf.normalRelayoutOperations removeObject:weakOperation];
+            });
+        }];
+        
+        dispatch_barrier_async(_operationManagerQueue, ^{
+            [weakSelf.normalRelayoutOperations addObject:operation];
+        });
+        
+        [weakSelf.reallocOperationQueue addOperation:operation];
+    }];
+}
 
-  for (ASCollectionElement *element in _visibleMap) {
-    // Ignore this element if it is no longer in the latest data. It is still recognized in the UIKit world but will be deleted soon.
-    NSIndexPath *indexPathInPendingMap = [_pendingMap indexPathForElement:element];
-    if (indexPathInPendingMap == nil) {
-      continue;
+- (BOOL)isRelayoutAllNode {
+    ASDisplayNodeAssertMainThread();
+    return _relayoutAllNodesTaskCount > 0;
+}
+
+- (void)cancelRelayoutAllNodesIfAny {
+    __weak ASDataController * weakSelf = self;
+    if (self.isRelayoutAllNode) {
+        dispatch_sync(_operationManagerQueue, ^{
+            NSHashTable * operations = [weakSelf.normalRelayoutOperations copy];
+            for (NSBlockOperation *operation in operations) {
+                [operation cancel];
+                [weakSelf.normalRelayoutOperations removeObject:operation];
+            }
+        });
     }
-
-    NSString *kind = element.supplementaryElementKind ?: ASDataControllerRowNodeKind;
-    ASSizeRange newConstrainedSize = [self constrainedSizeForNodeOfKind:kind atIndexPath:indexPathInPendingMap];
-
-    if (ASSizeRangeHasSignificantArea(newConstrainedSize)) {
-      element.constrainedSize = newConstrainedSize;
-
-      // Node may not be allocated yet (e.g node virtualization or same size optimization)
-      // Call context.nodeIfAllocated here to avoid premature node allocation and layout
-      ASCellNode *node = element.nodeIfAllocated;
-      if (node) {
-        [self _layoutNode:node withConstrainedSize:newConstrainedSize];
-      }
-    }
-  }
 }
 
 # pragma mark - ASPrimitiveTraitCollection

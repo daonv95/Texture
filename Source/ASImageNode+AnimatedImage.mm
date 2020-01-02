@@ -53,7 +53,7 @@
   _animatedImage = animatedImage;
   
   if (animatedImage != nil) {
-    __weak ASImageNode *weakSelf = self;
+      __weak __typeof__(self) weakSelf = self;
     if ([animatedImage respondsToSelector:@selector(setCoverImageReadyCallback:)]) {
       animatedImage.coverImageReadyCallback = ^(UIImage *coverImage) {
         // In this case the lock is already gone we have to call the unlocked version therefore

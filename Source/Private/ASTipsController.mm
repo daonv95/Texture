@@ -166,8 +166,9 @@
  */
 - (void)setupRunLoopObserver
 {
+    __weak __typeof__(self) weakSelf = self;
   CFRunLoopObserverRef o = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopBeforeWaiting, true, 0, ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
-    [self runLoopDidTick];
+    [weakSelf runLoopDidTick];
   });
   CFRunLoopAddObserver(CFRunLoopGetMain(), o, kCFRunLoopCommonModes);
 }

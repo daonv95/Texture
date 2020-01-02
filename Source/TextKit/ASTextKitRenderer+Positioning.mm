@@ -27,8 +27,9 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
 - (NSArray *)rectsForTextRange:(NSRange)textRange measureOption:(ASTextKitRendererMeasureOption)measureOption
 {
   __block NSArray *textRects = nil;
+    __weak __typeof__(self) weakSelf = self;
   [self.context performBlockWithLockedTextKitComponents:^(NSLayoutManager *layoutManager, NSTextStorage *textStorage, NSTextContainer *textContainer) {
-    textRects = [self unlockedRectsForTextRange:textRange measureOptions:measureOption layoutManager:layoutManager textStorage:textStorage textContainer:textContainer];
+    textRects = [weakSelf unlockedRectsForTextRange:textRange measureOptions:measureOption layoutManager:layoutManager textStorage:textStorage textContainer:textContainer];
   }];
   return textRects;
 }
@@ -54,6 +55,7 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
 
   NSRange totalGlyphRange = [layoutManager glyphRangeForCharacterRange:clampedRange actualCharacterRange:NULL];
 
+    __weak __typeof__(self) weakSelf = self;
   [layoutManager enumerateLineFragmentsForGlyphRange:totalGlyphRange usingBlock:^(CGRect rect,
                                                                                   CGRect usedRect,
                                                                                   NSTextContainer *innerTextContainer,
@@ -71,7 +73,7 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
       NSRange lineGlyphRange = NSIntersectionRange(totalGlyphRange, glyphRange);
       for (NSUInteger i = lineGlyphRange.location; i < NSMaxRange(lineGlyphRange) && i < string.length; i++) {
         // We grab the properly sized rect for the glyph
-        CGRect properGlyphRect = [self _internalRectForGlyphAtIndex:i
+        CGRect properGlyphRect = [weakSelf _internalRectForGlyphAtIndex:i
                                                       measureOption:measureOption
                                                       layoutManager:layoutManager
                                                       textContainer:textContainer
@@ -111,7 +113,7 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
       } else {
         // If the block option isn't being used then each line is being treated
         // individually.
-        [mutableTextRects addObject:[NSValue valueWithCGRect:[self.shadower offsetRectWithInternalRect:lineRect]]];
+        [mutableTextRects addObject:[NSValue valueWithCGRect:[weakSelf.shadower offsetRectWithInternalRect:lineRect]]];
       }
     }
   }];
@@ -143,13 +145,13 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
         lastRect.size.width += lastRectNudgeAmount;
       }
 
-      [mutableTextRects addObject:[NSValue valueWithCGRect:[self.shadower offsetRectWithInternalRect:firstRect]]];
+      [mutableTextRects addObject:[NSValue valueWithCGRect:[weakSelf.shadower offsetRectWithInternalRect:firstRect]]];
     }
     if (!CGRectIsNull(blockRect)) {
-      [mutableTextRects addObject:[NSValue valueWithCGRect:[self.shadower offsetRectWithInternalRect:blockRect]]];
+      [mutableTextRects addObject:[NSValue valueWithCGRect:[weakSelf.shadower offsetRectWithInternalRect:blockRect]]];
     }
     if (!CGRectIsNull(lastRect)) {
-      [mutableTextRects addObject:[NSValue valueWithCGRect:[self.shadower offsetRectWithInternalRect:lastRect]]];
+      [mutableTextRects addObject:[NSValue valueWithCGRect:[weakSelf.shadower offsetRectWithInternalRect:lastRect]]];
     }
   }
 
@@ -308,6 +310,7 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
       __block BOOL isValidGlyph = NO;
       __block CGRect glyphRect = CGRectNull;
 
+        __weak __typeof__(self) weakSelf = self;
       [lockingContext performBlockWithLockedTextKitComponents:^(NSLayoutManager *layoutManager, NSTextStorage *textStorage, NSTextContainer *textContainer) {
         // We ask the layout manager for the proper glyph at the touch point
         NSUInteger glyphIndex = [layoutManager glyphIndexForPoint:currentPoint
@@ -322,7 +325,7 @@ static const CGFloat ASTextKitRendererTextCapHeightPadding = 1.3;
 
         characterIndex = [layoutManager characterIndexForGlyphAtIndex:glyphIndex];
 
-        glyphRect = [self _internalRectForGlyphAtIndex:glyphIndex
+        glyphRect = [weakSelf _internalRectForGlyphAtIndex:glyphIndex
                                          measureOption:ASTextKitRendererMeasureOptionLineHeight
                                          layoutManager:layoutManager
                                          textContainer:textContainer

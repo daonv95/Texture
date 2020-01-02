@@ -92,44 +92,62 @@ CGRect CGRectExpandToRangeWithScrollableDirections(CGRect rect, ASRangeTuningPar
   auto tuningParameters = std::vector<std::vector<ASRangeTuningParameters>> (ASLayoutRangeModeCount, std::vector<ASRangeTuningParameters> (ASLayoutRangeTypeCount));
 
   tuningParameters[ASLayoutRangeModeFull][ASLayoutRangeTypeDisplay] = {
-    .leadingBufferScreenfuls = 1.0,
-    .trailingBufferScreenfuls = 0.5
-  };
+        .leadingBufferScreenfuls = 1.0,
+        .trailingBufferScreenfuls = 0.5
+    };
 
   tuningParameters[ASLayoutRangeModeFull][ASLayoutRangeTypePreload] = {
-    .leadingBufferScreenfuls = 2.5,
-    .trailingBufferScreenfuls = 1.5
-  };
-
+        .leadingBufferScreenfuls = 2.5,
+        .trailingBufferScreenfuls = 1.5
+    };
+    
+    tuningParameters[ASLayoutRangeModeFull][ASLayoutRangeTypeMaintain] = {
+        .leadingBufferScreenfuls = 3.5,
+        .trailingBufferScreenfuls = 2.5
+    };
+  
   tuningParameters[ASLayoutRangeModeMinimum][ASLayoutRangeTypeDisplay] = {
-    .leadingBufferScreenfuls = 0.25,
-    .trailingBufferScreenfuls = 0.25
-  };
+        .leadingBufferScreenfuls = 0.25,
+        .trailingBufferScreenfuls = 0.25
+    };
   tuningParameters[ASLayoutRangeModeMinimum][ASLayoutRangeTypePreload] = {
-    .leadingBufferScreenfuls = 0.5,
-    .trailingBufferScreenfuls = 0.25
-  };
-
+        .leadingBufferScreenfuls = 0.5,
+        .trailingBufferScreenfuls = 0.25
+    };
+    tuningParameters[ASLayoutRangeModeMinimum][ASLayoutRangeTypeMaintain] = {
+        .leadingBufferScreenfuls = 2.5,
+        .trailingBufferScreenfuls = 1.5
+    };
+    
   tuningParameters[ASLayoutRangeModeVisibleOnly][ASLayoutRangeTypeDisplay] = {
-    .leadingBufferScreenfuls = 0,
-    .trailingBufferScreenfuls = 0
-  };
+        .leadingBufferScreenfuls = 0,
+        .trailingBufferScreenfuls = 0
+    };
   tuningParameters[ASLayoutRangeModeVisibleOnly][ASLayoutRangeTypePreload] = {
-    .leadingBufferScreenfuls = 0,
-    .trailingBufferScreenfuls = 0
-  };
-
-  // The Low Memory range mode has special handling. Because a zero range still includes the visible area / bounds,
-  // in order to implement the behavior of releasing all graphics memory (backing stores), ASRangeController must check
-  // for this range mode and use an empty set for displayIndexPaths rather than querying the ASLayoutController for the indexPaths.
+        .leadingBufferScreenfuls = 0,
+        .trailingBufferScreenfuls = 0
+    };
+    
+    tuningParameters[ASLayoutRangeModeVisibleOnly][ASLayoutRangeTypeMaintain] = {
+        .leadingBufferScreenfuls = 1.5,
+        .trailingBufferScreenfuls = 1.0
+    };
+  
+    // The Low Memory range mode has special handling. Because a zero range still includes the visible area / bounds,
+    // in order to implement the behavior of releasing all graphics memory (backing stores), ASRangeController must check
+    // for this range mode and use an empty set for displayIndexPaths rather than querying the ASLayoutController for the indexPaths.
   tuningParameters[ASLayoutRangeModeLowMemory][ASLayoutRangeTypeDisplay] = {
-    .leadingBufferScreenfuls = 0,
-    .trailingBufferScreenfuls = 0
-  };
+        .leadingBufferScreenfuls = 0,
+        .trailingBufferScreenfuls = 0
+    };
   tuningParameters[ASLayoutRangeModeLowMemory][ASLayoutRangeTypePreload] = {
-    .leadingBufferScreenfuls = 0,
-    .trailingBufferScreenfuls = 0
-  };
+        .leadingBufferScreenfuls = 0,
+        .trailingBufferScreenfuls = 0
+    };
+    tuningParameters[ASLayoutRangeModeLowMemory][ASLayoutRangeTypeMaintain] = {
+        .leadingBufferScreenfuls = 0.5,
+        .trailingBufferScreenfuls = 0.5
+    };
   return tuningParameters;
 }
 
@@ -177,7 +195,7 @@ CGRect CGRectExpandToRangeWithScrollableDirections(CGRect rect, ASRangeTuningPar
   return nil;
 }
 
-- (void)allElementsForScrolling:(ASScrollDirection)scrollDirection rangeMode:(ASLayoutRangeMode)rangeMode displaySet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)displaySet preloadSet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)preloadSet map:(ASElementMap *)map
+- (void)allElementsForScrolling:(ASScrollDirection)scrollDirection rangeMode:(ASLayoutRangeMode)rangeMode displaySet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)displaySet preloadSet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)preloadSet maintainSet:(NSHashTable<ASCollectionElement *> *__autoreleasing  _Nullable *)maintainSet map:(ASElementMap *)map
 {
   ASDisplayNodeAssertNotSupported();
 }

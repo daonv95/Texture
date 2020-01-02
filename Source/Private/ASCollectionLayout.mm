@@ -205,11 +205,13 @@ static const ASScrollDirection kASStaticScrollDirection = (ASScrollDirectionRigh
   ASCollectionElement *element = [_layout.context.elements elementForItemAtIndexPath:indexPath];
   UICollectionViewLayoutAttributes *attrs = [_layout layoutAttributesForElement:element];
 
-  ASCellNode *node = element.node;
-  CGSize elementSize = attrs.frame.size;
-  if (! CGSizeEqualToSize(elementSize, node.calculatedSize)) {
-    [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(elementSize)];
-  }
+    CGSize elementSize = attrs.frame.size;
+    ASCellNode *node = element.nodeIfAllocated;
+    if (node) {
+        if (! CGSizeEqualToSize(elementSize, node.calculatedSize)) {
+            [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(elementSize)];
+        }
+    }
 
   ASCollectionLayoutSetSizeToElement(attrs.frame.size, element);
   return attrs;
@@ -220,11 +222,13 @@ static const ASScrollDirection kASStaticScrollDirection = (ASScrollDirectionRigh
   ASCollectionElement *element = [_layout.context.elements supplementaryElementOfKind:elementKind atIndexPath:indexPath];
   UICollectionViewLayoutAttributes *attrs = [_layout layoutAttributesForElement:element];
 
-  ASCellNode *node = element.node;
-  CGSize elementSize = attrs.frame.size;
-  if (! CGSizeEqualToSize(elementSize, node.calculatedSize)) {
-    [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(elementSize)];
-  }
+    CGSize elementSize = attrs.frame.size;
+    ASCellNode *node = element.nodeIfAllocated;
+    if (node) {
+        if (! CGSizeEqualToSize(elementSize, node.calculatedSize)) {
+            [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(elementSize)];
+        }
+    }
 
   ASCollectionLayoutSetSizeToElement(attrs.frame.size, element);
   return attrs;
@@ -338,11 +342,13 @@ static const ASScrollDirection kASStaticScrollDirection = (ASScrollDirectionRigh
   if (NSUInteger count = blockingAttrs.count) {
     ASDispatchApply(count, queue, 0, ^(size_t i) {
       UICollectionViewLayoutAttributes *attrs = blockingAttrs[i];
-      ASCellNode *node = [elements elementForItemAtIndexPath:attrs.indexPath].node;
-      CGSize expectedSize = attrs.frame.size;
-      if (! CGSizeEqualToSize(expectedSize, node.calculatedSize)) {
-        [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(expectedSize)];
-      }
+        ASCellNode *node = [elements elementForItemAtIndexPath:attrs.indexPath].nodeIfAllocated;
+        CGSize expectedSize = attrs.frame.size;
+        if (node) {
+            if (! CGSizeEqualToSize(expectedSize, node.calculatedSize)) {
+                [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(expectedSize)];
+            }
+        }
     });
   }
 
@@ -353,10 +359,12 @@ static const ASScrollDirection kASStaticScrollDirection = (ASScrollDirectionRigh
       __strong ASElementMap *strongElements = weakElements;
       if (strongElements) {
         UICollectionViewLayoutAttributes *attrs = nonBlockingAttrs[i];
-        ASCellNode *node = [elements elementForItemAtIndexPath:attrs.indexPath].node;
+        ASCellNode *node = [elements elementForItemAtIndexPath:attrs.indexPath].nodeIfAllocated;
         CGSize expectedSize = attrs.frame.size;
-        if (! CGSizeEqualToSize(expectedSize, node.calculatedSize)) {
-          [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(expectedSize)];
+        if (node) {
+            if (! CGSizeEqualToSize(expectedSize, node.calculatedSize)) {
+                [node layoutThatFits:ASCollectionLayoutElementSizeRangeFromSize(expectedSize)];
+            }
         }
       }
     });
@@ -374,7 +382,7 @@ ASDISPLAYNODE_INLINE ASSizeRange ASCollectionLayoutElementSizeRangeFromSize(CGSi
 
 ASDISPLAYNODE_INLINE void ASCollectionLayoutSetSizeToElement(CGSize size, ASCollectionElement *element)
 {
-  if (ASCellNode *node = element.node) {
+  if (ASCellNode *node = element.nodeIfAllocated) {
     if (! CGSizeEqualToSize(size, node.frame.size)) {
       CGRect frame = CGRectZero;
       frame.size = size;

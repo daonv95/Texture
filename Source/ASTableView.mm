@@ -98,13 +98,24 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 
 - (ASCellNode *)node
 {
-  return self.element.node;
+    static ASCellNode *temp = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        temp = [[ASCellNode alloc] init];
+    });
+    
+    ASCellNode * ret = self.element.nodeIfAllocated;
+    if (ret) {
+        return ret;
+    } else {
+        return temp;
+    }
 }
 
 - (void)setElement:(ASCollectionElement *)element
 {
   _element = element;
-  ASCellNode *node = element.node;
+  ASCellNode *node = element.nodeIfAllocated;
   
   if (node) {
     self.backgroundColor = node.backgroundColor;
@@ -151,6 +162,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 - (void)prepareForReuse
 {
   // Need to clear element before UIKit calls setSelected:NO / setHighlighted:NO on its cells
+    self.element.allocNodeBlockCallBack = nil;
   self.element = nil;
   [super prepareForReuse];
 }
@@ -193,6 +205,10 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   // CountedSet because UIKit may display the same element in multiple cells e.g. during animations.
   NSCountedSet<ASCollectionElement *> *_visibleElements;
   
+    
+    BOOL _needReloadRowsFlag;
+    NSMutableArray<NSIndexPath *> *_needReloadIndexPaths;
+    
   NSHashTable<ASCellNode *> *_cellsForLayoutUpdates;
 
   // See documentation on same property in ASCollectionView
@@ -289,6 +305,8 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 @property (nonatomic, weak)   ASTableNode *tableNode;
 
 @property (nonatomic) BOOL test_enableSuperUpdateCallLogging;
+@property (nonatomic) BOOL savedUserInteractionEnabled;
+
 @end
 
 @implementation ASTableView
@@ -337,12 +355,16 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   _dataController = [[dataControllerClass alloc] initWithDataSource:self node:tableNode eventLog:eventLog];
   _dataController.delegate = _rangeController;
   
+    _savedUserInteractionEnabled = self.userInteractionEnabled;
+    
   _leadingScreensForBatching = 2.0;
   _batchContext = [[ASBatchContext alloc] init];
   _visibleElements = [[NSCountedSet alloc] init];
   
   _automaticallyAdjustsContentOffset = NO;
   
+    _recalculateCellLayoutWhenViewSizeChanged = NO;
+    
   _nodesConstrainedWidth = self.bounds.size.width;
   
   _proxyDelegate = [[ASTableViewProxy alloc] initWithTarget:nil interceptor:self];
@@ -350,6 +372,9 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   
   _proxyDataSource = [[ASTableViewProxy alloc] initWithTarget:nil interceptor:self];
   super.dataSource = (id<UITableViewDataSource>)_proxyDataSource;
+    
+    _needReloadRowsFlag = NO;
+    _needReloadIndexPaths = [NSMutableArray array];
   
   [self registerClass:_ASTableViewCell.class forCellReuseIdentifier:kCellReuseIdentifier];
   
@@ -381,6 +406,15 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     [self setAsyncDataSource:nil];
   }
 
+    // Exit visible state for element
+    for (ASCollectionElement * element in _dataController.visibleMap.itemElements) {
+        if (ASInterfaceStateIncludesVisible(element.nodeInterfaceState)) {
+            [element exitInterfaceState:ASInterfaceStateVisible];
+        }
+    }
+    
+    [_dataController cancelRelayoutAllNodesIfAny];
+    
   // Data controller & range controller may own a ton of nodes, let's deallocate those off-main
   ASPerformBackgroundDeallocation(&_dataController);
   ASPerformBackgroundDeallocation(&_rangeController);
@@ -588,7 +622,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 
 - (void)relayoutItems
 {
-  [_dataController relayoutAllNodesWithInvalidationBlock:nil];
+  [_dataController relayoutAllNodesWithInvalidationBlock:nil withCompletion:nil];
 }
 
 - (void)setTuningParameters:(ASRangeTuningParameters)tuningParameters forRangeType:(ASLayoutRangeType)rangeType
@@ -783,7 +817,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     [_cellsForLayoutUpdates removeAllObjects];
 
     [self beginUpdates];
-    [_dataController relayoutAllNodesWithInvalidationBlock:nil];
+    [_dataController relayoutAllNodesWithInvalidationBlock:nil withCompletion:nil];
     [self endUpdatesAnimated:(ASDisplayNodeLayerHasAnimations(self.layer) == NO) completion:nil];
   } else {
     if (_cellsForLayoutUpdates.count > 0) {
@@ -801,6 +835,40 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   // To ensure _nodesConstrainedWidth is up-to-date for every usage, this call to super must be done last
   [super layoutSubviews];
   [_rangeController updateIfNeeded];
+}
+
+- (void)_triggerRelayoutAllNodes {
+    ASDisplayNodeAssertMainThread();
+    
+    if (_recalculateCellLayoutWhenViewSizeChanged) {
+        __weak ASTableView * weakSelf = self;
+        
+        if (_dataController.isRelayoutAllNode == NO) {
+            _savedUserInteractionEnabled = self.userInteractionEnabled;
+        }
+        
+        // Disallow user interaction til relayout complete
+        [super setUserInteractionEnabled:NO];
+        // Stop scrolling if it is
+        CGPoint offset = self.contentOffset;
+        offset.x += 0.1;
+        offset.y += 0.1;
+        [self setContentOffset:offset animated:NO];
+        
+        [_dataController
+         relayoutAllNodesWithInvalidationBlock:nil
+         withCompletion:^{
+             if (weakSelf.dataController.isRelayoutAllNode == NO) {
+                 [weakSelf requeryNodeHeights];
+                 [weakSelf.rangeController setNeedsUpdate];
+                 [weakSelf.rangeController updateIfNeeded];
+                 [weakSelf setUserInteractionEnabled:weakSelf.savedUserInteractionEnabled];
+             }
+        }];
+    } else {
+        // Just requery constraintSize for nodes
+        [_dataController requeryConstraintSizeAllNodes];
+    }
 }
 
 #pragma mark -
@@ -883,7 +951,8 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 {
   NSIndexPath *firstVisibleIndexPath = [self.indexPathsForVisibleRows sortedArrayUsingSelector:@selector(compare:)].firstObject;
   if (firstVisibleIndexPath) {
-    ASCellNode *node = [self nodeForRowAtIndexPath:firstVisibleIndexPath];
+      ASCollectionElement * element = [_dataController.visibleMap elementForItemAtIndexPath:firstVisibleIndexPath];
+    ASCellNode *node = element.nodeIfAllocated;
     if (node) {
       _contentOffsetAdjustmentTopVisibleNode = node;
       _contentOffsetAdjustmentTopVisibleNodeOffset = [self rectForRowAtIndexPath:firstVisibleIndexPath].origin.y - self.bounds.origin.y;
@@ -936,9 +1005,8 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-  UITableViewCell *cell = nil;
   ASCollectionElement *element = [_dataController.visibleMap elementForItemAtIndexPath:indexPath];
-  ASCellNode *node = element.node;
+  ASCellNode *node = element.nodeIfAllocated;
   
   ASTableWrapperCellNode *wrapperNode = (node.shouldUseUIKitCell ? (ASTableWrapperCellNode *)node : nil);
   BOOL shouldDequeExternally = _asyncDataSourceFlags.interopAlwaysDequeue || (_asyncDataSourceFlags.interop && wrapperNode);
@@ -953,14 +1021,34 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     cell = [self dequeueReusableCellWithIdentifier:kCellReuseIdentifier forIndexPath:indexPath];
   }
   
-  ASDisplayNodeAssert(element != nil, @"Element should exist. indexPath = %@, collectionDataSource = %@", indexPath, self);
-  ASDisplayNodeAssert(cell != nil, @"UITableViewCell must not be nil. indexPath = %@, tableDataSource = %@", indexPath, self);
-  
   if (_ASTableViewCell *asCell = ASDynamicCastStrict(cell, _ASTableViewCell)) {
-    asCell.element = element;
+  	asCell.element = element;
     asCell.delegate = self;
-    
-    [_rangeController configureContentView:cell.contentView forCellNode:node];
+
+    if (node) {
+      [_rangeController configureContentView:cell.contentView forCellNode:node];
+  	} else {
+      NSIndexPath *oldIndexPath = indexPath;
+      
+      __weak ASTableView *weakSelf = self;
+      
+      element.allocNodeBlockCallBack = ^(ASCollectionElement * _Nonnull elem) {
+      	ASPerformBlockOnMainThread(^{
+          __strong ASTableView * strongSelf = weakSelf;
+      
+          ASCellNode * node = elem.nodeIfAllocated;            
+          NSIndexPath *currentIndexPath = [weakSelf indexPathForCell:cell];
+              
+          if ([oldIndexPath compare:currentIndexPath] == NSOrderedSame) {
+            if (cell && cell.contentView) {
+              [strongSelf->_rangeController configureContentView:cell.contentView forCellNode:node];   
+                cell.element = elem;
+                node.scrollView = weakSelf;
+               }
+            }
+          });
+      };
+    }
   }
 
   return cell;
@@ -971,10 +1059,14 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   CGFloat height = 0.0;
 
   ASCollectionElement *element = [_dataController.visibleMap elementForItemAtIndexPath:indexPath];
-  if (element != nil) {
-    ASCellNode *node = element.node;
-    ASDisplayNodeAssertNotNil(node, @"Node must not be nil!");
-    height = [node layoutThatFits:element.constrainedSize].size.height;
+    if (element != nil) {
+        ASCellNode *node = element.node;
+        if (element.nodeIfAllocated) {
+            // Case node not layout-ed yet!
+            height = [node layoutThatFits:element.constrainedSize].size.height;
+        } else {
+            height = element.nodeIfAllocated.calculatedSize.height;
+        }
   }
   
 #if TARGET_OS_IOS
@@ -1054,7 +1146,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     return;
   }
 
-  ASCellNode *cellNode = element.node;
+  ASCellNode *cellNode = cell.node;
   cellNode.scrollView = tableView;
 
   ASDisplayNodeAssertNotNil(cellNode, @"Expected node associated with cell that will be displayed not to be nil. indexPath: %@", indexPath);
@@ -1102,7 +1194,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     return;
   }
 
-  ASCellNode *cellNode = element.node;
+  ASCellNode *cellNode = cell.node;
 
   [_rangeController setNeedsUpdate];
 
@@ -1427,6 +1519,13 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
   _automaticallyAdjustsContentOffset = automaticallyAdjustsContentOffset;
 }
 
+- (void)setUserInteractionEnabled:(BOOL)userInteractionEnabled {
+    _savedUserInteractionEnabled = userInteractionEnabled;
+    if (_dataController.isRelayoutAllNode == NO) {
+        [super setUserInteractionEnabled:userInteractionEnabled];
+    }
+}
+
 #pragma mark - Scroll Direction
 
 - (ASScrollDirection)scrollDirection
@@ -1580,6 +1679,11 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
 }
 
 #pragma mark - ASRangeControllerDelegate
+
+- (void)rangeController:(ASRangeController *)rangeController elementsDidEnterMaintainRange:(NSHashTable<ASCollectionElement *> *)elementsEnter elementsDidExitMaintainRange:(NSHashTable<ASCollectionElement *> *)elementsExit {
+    
+    [_dataController maintainUpdateWithEnterElements:elementsEnter andExitElement:elementsExit];
+}
 
 - (BOOL)rangeControllerShouldUpdateRanges:(ASRangeController *)rangeController
 {
@@ -1842,7 +1946,7 @@ static NSString * const kCellReuseIdentifier = @"_ASTableViewCell";
     if (node.interactionDelegate == nil) {
       node.interactionDelegate = strongSelf;
     }
-    if (_inverted) {
+    if (strongSelf.inverted) {
         node.transform = CATransform3DMakeScale(1, -1, 1) ;
     }
     return node;

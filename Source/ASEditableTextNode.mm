@@ -174,17 +174,18 @@
 {
   [super didLoad];
 
+    __weak __typeof__(self) weakSelf = self;
   void (^configureTextView)(UITextView *) = ^(UITextView *textView) {
     if (!_displayingPlaceholder || textView != _textKitComponents.textView) {
       // If showing the placeholder, don't propagate backgroundColor/opaque to the editable textView.  It is positioned over the placeholder to accept taps to begin editing, and if it's opaque/colored then it'll obscure the placeholder.
-      textView.backgroundColor = self.backgroundColor;
-      textView.opaque = self.opaque;
+      textView.backgroundColor = weakSelf.backgroundColor;
+      textView.opaque = weakSelf.opaque;
     } else if (_displayingPlaceholder && textView == _textKitComponents.textView) {
       // The default backgroundColor for a textView is white.  Due to the reason described above, make sure the editable textView starts out transparent.
       textView.backgroundColor = nil;
       textView.opaque = NO;
     }
-    textView.textContainerInset = self.textContainerInset;
+    textView.textContainerInset = weakSelf.textContainerInset;
     
     // Configure textView with UITextInputTraits
     {
@@ -201,7 +202,7 @@
       }
     }
     
-    [self.view addSubview:textView];
+    [weakSelf.view addSubview:textView];
   };
 
   ASDN::MutexLocker l(_textKitLock);

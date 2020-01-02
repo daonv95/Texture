@@ -8,6 +8,7 @@
 //
 
 #import <AsyncDisplayKit/ASCollectionFlowLayoutDelegate.h>
+#import <AsyncDisplayKit/_ASCollectionFlowLayoutItem.h>
 
 #import <AsyncDisplayKit/ASCellNode+Internal.h>
 #import <AsyncDisplayKit/ASCollectionLayoutState.h>
@@ -21,6 +22,10 @@
 
 @implementation ASCollectionFlowLayoutDelegate {
   ASScrollDirection _scrollableDirections;
+    
+    struct {
+        unsigned int constrainedSizeForItemAtIndexPath:1;
+    } _constraintSizeProviderFlag;
 }
 
 - (instancetype)init
@@ -37,6 +42,18 @@
   return self;
 }
 
+- (void)setConstraintSizeProvider:(id<ASCollectionFlowLayoutDelegateConstraintSizeProvider>)constraintSizeProvider
+{
+    ASDisplayNodeAssertMainThread();
+    if (constraintSizeProvider == nil) {
+        _constraintSizeProvider = nil;
+        _constraintSizeProviderFlag = {};
+    } else {
+        _constraintSizeProvider = constraintSizeProvider;
+        _constraintSizeProviderFlag.constrainedSizeForItemAtIndexPath = [_constraintSizeProvider respondsToSelector:@selector(collectionFlowLayoutDelegate:constrainedSizeForItemAtIndexPath:)];
+    }
+}
+
 - (ASScrollDirection)scrollableDirections
 {
   ASDisplayNodeAssertMainThread();
@@ -46,6 +63,15 @@
 - (id)additionalInfoForLayoutWithElements:(ASElementMap *)elements
 {
   ASDisplayNodeAssertMainThread();
+    if (_constraintSizeProviderFlag.constrainedSizeForItemAtIndexPath) {
+        for (ASCollectionElement * element in elements.itemElements) {
+            NSIndexPath * indexPath = [elements indexPathForElement:element];
+            ASSizeRange sizeRange = [_constraintSizeProvider collectionFlowLayoutDelegate:self constrainedSizeForItemAtIndexPath:indexPath];
+            if (ASSizeRangeHasSignificantArea(sizeRange)) {
+                element.constrainedSize = sizeRange;
+            }
+        }
+    }
   return nil;
 }
 
@@ -70,8 +96,8 @@
   ASLayout *layout = [stackSpec layoutThatFits:sizeRange];
 
   return [[ASCollectionLayoutState alloc] initWithContext:context layout:layout getElementBlock:^ASCollectionElement * _Nullable(ASLayout * _Nonnull sublayout) {
-    ASCellNode *node = ASDynamicCast(sublayout.layoutElement, ASCellNode);
-    return node ? node.collectionElement : nil;
+    _ASFlowLayoutItem *item = ASDynamicCast(sublayout.layoutElement, _ASFlowLayoutItem);
+    return item ? item.collectionElement : nil;
   }];
 }
 
