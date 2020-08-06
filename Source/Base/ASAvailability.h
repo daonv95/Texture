@@ -13,9 +13,13 @@
 
 #ifdef __i386__
   #define AS_TLS_AVAILABLE 0
-#else
+#else // __i386__
+#if __has_include(<threads.h>)
   #define AS_TLS_AVAILABLE 1
-#endif
+#else // __has_include(<threads.h>)
+  #define AS_TLS_AVAILABLE 0
+#endif // __has_include(<threads.h>)
+#endif // __i386__
 
 #ifndef AS_ENABLE_TEXTNODE
   #define AS_ENABLE_TEXTNODE 1 // Enable old TextNode by default

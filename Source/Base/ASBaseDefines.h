@@ -248,10 +248,3 @@
   __typeof(lvalue) __result = (__bridge_transfer __typeof(lvalue))__cfValue; \
   __result; \
 })
-
-
-/**
- Time estimation
- */
-#define ESTIMATE_TIME_START     NSDate *startEstimateTime = [NSDate date]
-#define ESTIMATE_TIME_END(S)    NSLog(@"%@: %f", S, -[startEstimateTime timeIntervalSinceNow])

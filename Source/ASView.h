@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 typedef ASLayoutSpec * _Nonnull(^ASUIViewLayoutSpecBlock)(__kindof UIView *view, ASSizeRange constrainedSize);
 
-
+/*
 @interface UIView (ASLayoutElement) <ASLayoutElement>
 
 @end
@@ -34,5 +34,6 @@ typedef ASLayoutSpec * _Nonnull(^ASUIViewLayoutSpecBlock)(__kindof UIView *view,
 @interface ASView : UIView
 
 @end
+ */
 
 NS_ASSUME_NONNULL_END

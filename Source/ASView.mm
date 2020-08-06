@@ -18,6 +18,8 @@
 #import <AsyncDisplayKit/ASLayoutTransition.h>
 #import <AsyncDisplayKit/ASLog.h>
 
+/*
+
 BOOL ASUIViewSubclassOverridesSelector(Class subclass, SEL selector)
 {
   return ASSubclassOverridesSelector([ASView class], subclass, selector) ||
@@ -575,3 +577,4 @@ ASDK_STYLE_PROP_PRIM(BOOL, automaticallyManageSubviews, setAutomaticallyManageSu
 }
 @end
 
+*/
