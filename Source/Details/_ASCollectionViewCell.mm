@@ -109,8 +109,20 @@
   if (![super hitTest:self.bounds.origin withEvent:event]) {
     return nil;
   }
-
-  return [self.node hitTest:point withEvent:event];
+  
+  /**
+   * Convert point to self.node.view coordinate.
+   */
+  UIView *view = [self.node hitTest:[self convertPoint:point toView:self.node.view] withEvent:event];
+  /**
+   * When implement MultiSelection, we add *check button* (WidenButton) on _ASCollectionViewCell->contentView.
+   * Texture don't care SubViews on ContentView, so they don't return hit view on [contentVie subViews]
+   * So here, if point is outside of self.node.view. We will call [super hitTest:..] to gain *view* which contains this point if any.
+   */
+  if (!view) {
+    view = [super hitTest:point withEvent:event];
+  }
+  return view;
 }
 
 - (BOOL)pointInside:(CGPoint)point withEvent:(nullable UIEvent *)event
