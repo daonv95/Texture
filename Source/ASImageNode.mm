@@ -180,7 +180,11 @@ static const CGSize kMinReleaseImageOnBackgroundSize = {20.0, 20.0};
   }
   
   ASDN::MutexLocker l(__instanceLock__);
-  
+    
+  if (self.placeholderImageBlock) {
+    return self.placeholderImageBlock(self, self.placeholderParameters);
+  }
+    
   ASGraphicsBeginImageContextWithOptions(size, NO, 1);
   [self.placeholderColor setFill];
   UIRectFill(CGRectMake(0, 0, size.width, size.height));
