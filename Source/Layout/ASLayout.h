@@ -36,7 +36,7 @@ AS_EXTERN ASLayout *ASCalculateLayout(id<ASLayoutElement>layoutElement, const AS
 /**
  * A node in the layout tree that represents the size and position of the object that created it (ASLayoutElement).
  */
-@interface ASLayout : NSObject
+@interface ASLayout : NSObject <NSCopying>
 
 /**
  * The underlying object described by this layout
@@ -150,6 +150,15 @@ AS_EXTERN ASLayout *ASCalculateLayout(id<ASLayoutElement>layoutElement, const AS
  */
 - (NSString *)recursiveDescription;
 
+@end
+
+
+/**
+ * A node in the layout tree that represents the size and position of the object that created it (ASLayoutElement).
+ * The difference between ASFlattenLayout and ASLayout is due to ASLayout only allow to flat sublayouts of ASLayoutSpec element,
+ * ASFlattenLayout allowed to flat sublayouts of ASDisplayNode element.
+ */
+@interface ASFlattenLayout : ASLayout
 @end
 
 NS_ASSUME_NONNULL_END
