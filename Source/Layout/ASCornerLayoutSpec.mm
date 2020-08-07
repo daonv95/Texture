@@ -17,23 +17,71 @@ CGPoint as_calculatedCornerOriginIn(CGRect baseFrame, CGSize cornerSize, ASCorne
   CGPoint baseOrigin = baseFrame.origin;
   CGSize baseSize = baseFrame.size;
   
-  switch (cornerLocation) {
-    case ASCornerLayoutLocationTopLeft:
-      cornerOrigin.x = baseOrigin.x - cornerSize.width / 2;
-      cornerOrigin.y = baseOrigin.y - cornerSize.height / 2;
-      break;
-    case ASCornerLayoutLocationTopRight:
-      cornerOrigin.x = baseOrigin.x + baseSize.width - cornerSize.width / 2;
-      cornerOrigin.y = baseOrigin.y - cornerSize.height / 2;
-      break;
-    case ASCornerLayoutLocationBottomLeft:
-      cornerOrigin.x = baseOrigin.x - cornerSize.width / 2;
-      cornerOrigin.y = baseOrigin.y + baseSize.height - cornerSize.height / 2;
-      break;
-    case ASCornerLayoutLocationBottomRight:
-      cornerOrigin.x = baseOrigin.x + baseSize.width - cornerSize.width / 2;
-      cornerOrigin.y = baseOrigin.y + baseSize.height - cornerSize.height / 2;
-      break;
+  if (cornerLocation & ASCornerLayoutLocationTopLeft) {
+    BOOL internalLeft = cornerLocation & ASCornerLayoutLocationInternalLeft;
+    BOOL internalTop = cornerLocation & ASCornerLayoutLocationInternalTop;
+    
+    cornerOrigin.x = baseOrigin.x - cornerSize.width / (internalLeft ? 1 : 2);
+    cornerOrigin.y = baseOrigin.y - cornerSize.height / (internalTop ? 1 : 2);
+  }
+  else if (cornerLocation & ASCornerLayoutLocationTopRight) {
+    BOOL internalRight = cornerLocation & ASCornerLayoutLocationInternalRight;
+    BOOL internalTop = cornerLocation & ASCornerLayoutLocationInternalTop;
+    
+    cornerOrigin.x = baseOrigin.x + baseSize.width - cornerSize.width / (internalRight ? 1 : 2);
+    cornerOrigin.y = baseOrigin.y - cornerSize.height / (internalTop ? 1 : 2);
+  }
+  else if (cornerLocation & ASCornerLayoutLocationBottomLeft) {
+    BOOL internalLeft = cornerLocation & ASCornerLayoutLocationInternalLeft;
+    BOOL internalBottom = cornerLocation & ASCornerLayoutLocationInternalBottom;
+    
+    cornerOrigin.x = baseOrigin.x - cornerSize.width / (internalLeft ? 1 : 2);
+    cornerOrigin.y = baseOrigin.y + baseSize.height - cornerSize.height / (internalBottom ? 1 : 2);
+  }
+  else if (cornerLocation & ASCornerLayoutLocationBottomRight) {
+    BOOL internalRight = cornerLocation & ASCornerLayoutLocationInternalRight;
+    BOOL internalBottom = cornerLocation & ASCornerLayoutLocationInternalBottom;
+    
+    cornerOrigin.x = baseOrigin.x + baseSize.width - cornerSize.width / (internalRight ? 1 : 2);
+    cornerOrigin.y = baseOrigin.y + baseSize.height - cornerSize.height / (internalBottom ? 1 : 2);
+  }
+  
+  // Center vertical/horizontal:
+  if (cornerLocation & ASCornerLayoutLocationCenterVertical) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationTopRight)) {
+      cornerOrigin.y += baseSize.height/2;
+    } else if ((cornerLocation & ASCornerLayoutLocationBottomLeft) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.y -= baseSize.height/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationCenterHorizontal) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationBottomLeft)) {
+      cornerOrigin.x += baseSize.width/2;
+    } else if ((cornerLocation & ASCornerLayoutLocationTopRight) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.x -= baseSize.width/2;
+    }
+  }
+  
+  // External top/left/bottom/right:
+  if (cornerLocation & ASCornerLayoutLocationExternalTop) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationTopRight)) {
+      cornerOrigin.y -= cornerSize.height/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationExternalLeft) {
+    if ((cornerLocation & ASCornerLayoutLocationTopLeft) || (cornerLocation & ASCornerLayoutLocationBottomLeft)) {
+      cornerOrigin.x -= cornerSize.width/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationExternalBottom) {
+    if ((cornerLocation & ASCornerLayoutLocationBottomLeft) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.y += cornerSize.height/2;
+    }
+  }
+  if (cornerLocation & ASCornerLayoutLocationExternalRight) {
+    if ((cornerLocation & ASCornerLayoutLocationTopRight) || (cornerLocation & ASCornerLayoutLocationBottomRight)) {
+      cornerOrigin.x += cornerSize.width/2;
+    }
   }
   
   cornerOrigin.x += offset.x;
