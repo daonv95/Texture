@@ -16,6 +16,7 @@
 #import <AsyncDisplayKit/ASLayout.h>
 #import <AsyncDisplayKit/ASLayoutElementStylePrivate.h>
 #import <AsyncDisplayKit/ASLog.h>
+#import <AsyncDisplayKit/_ASScopeTimer.h>
 
 #pragma mark - ASDisplayNode (ASLayoutElement)
 
@@ -75,6 +76,11 @@
     return [self calculateLayoutThatFits:constrainedSize restrictedToSize:self.style.size relativeToParentSize:parentSize];
   }
 
+#if DEBUG
+  static NSTimeInterval layoutTotalTime = 0;
+  NSTimeInterval layoutTime = 0;
+#endif
+
   ASLayout *layout = nil;
   NSUInteger version = _layoutVersion;
   if (_calculatedDisplayNodeLayout.isValid(constrainedSize, parentSize, version)) {
@@ -84,6 +90,11 @@
     ASDisplayNodeAssertNotNil(_pendingDisplayNodeLayout.layout, @"-[ASDisplayNode layoutThatFits:parentSize:] _pendingDisplayNodeLayout.layout should not be nil! %@", self);
     layout = _pendingDisplayNodeLayout.layout;
   } else {
+#if DEBUG
+    ASDN::SumScopeTimer t(layoutTotalTime, YES);
+    ASDN::ScopeTimer t2(layoutTime);
+#endif
+      
     // Create a pending display node layout for the layout pass
     layout = [self calculateLayoutThatFits:constrainedSize
                           restrictedToSize:self.style.size
@@ -92,7 +103,13 @@
     _pendingDisplayNodeLayout = ASDisplayNodeLayout(layout, constrainedSize, parentSize,version);
     ASDisplayNodeAssertNotNil(layout, @"-[ASDisplayNode layoutThatFits:parentSize:] newly calculated layout should not be nil! %@", self);
   }
-  
+    
+#if DEBUG
+  if ([self isKindOfClass:NSClassFromString(@"ASCellNode")]) {
+    NSLog(@"DAONV: layoutTime %lf %lf %@", layoutTotalTime, layoutTime, self);
+  }
+#endif
+    
   return layout ?: [ASLayout layoutWithLayoutElement:self size:{0, 0}];
 }
 
