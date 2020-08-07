@@ -36,6 +36,11 @@ typedef void(^ASImageCacherCompletion)(id <ASImageContainerProtocol> _Nullable i
              callbackQueue:(dispatch_queue_t)callbackQueue
                 completion:(ASImageCacherCompletion)completion;
 
+- (void)cachedImageWithURL:(NSURL *)URL
+                    prefix:(NSString *)prefix
+             callbackQueue:(dispatch_queue_t)callbackQueue
+                completion:(ASImageCacherCompletion)completion;
+
 @optional
 
 /**
@@ -108,6 +113,25 @@ typedef NS_ENUM(NSUInteger, ASImageDownloaderPriority) {
 - (void)cancelImageDownloadForIdentifier:(id)downloadIdentifier;
 
 @optional
+
+/**
+ @abstract Downloads an image with the given URL.
+ @param URL The URL of the image to download.
+ @param callbackQueue The queue to call `downloadProgressBlock` and `completion` on.
+ @param downloadProgress The block to be invoked when the download of `URL` progresses.
+ @param completion The block to be invoked when the download has completed, or has failed.
+ @param option UXImageProcessOption for define modifier downloaded image option.
+ @param qosDownloadID Qos download ID for tracking log.
+ @discussion This method is likely to be called on the main thread, so any custom implementations should make sure to background any expensive download operations.
+ @result An opaque identifier to be used in canceling the download, via `cancelImageDownloadForIdentifier:`. You must
+ retain the identifier if you wish to use it later.
+ */
+- (nullable id)downloadImageWithURL:(NSURL *)URL
+                      callbackQueue:(dispatch_queue_t)callbackQueue
+                   downloadProgress:(nullable ASImageDownloaderProgress)downloadProgress
+                         completion:(ASImageDownloaderCompletion)completion
+                            options:(NSUInteger)option
+                      qosDownloadID:(NSUInteger)qosDownloadID;
 
 /**
  @abstract Cancels an image download, however indicating resume data should be stored in case of redownload.

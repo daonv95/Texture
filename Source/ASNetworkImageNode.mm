@@ -58,6 +58,9 @@
     unsigned int delegateDidLoadImage:1;
     unsigned int delegateDidLoadImageFromCache:1;
     unsigned int delegateDidLoadImageWithInfo:1;
+    unsigned int delegateImageProcessingOption:1;
+    unsigned int delegateQOSHTTPDownloaderType:1;
+    unsigned int delegateGetPrefix:1;
   } _delegateFlags;
 
   
@@ -68,6 +71,7 @@
     unsigned int downloaderImplementsSetPriority:1;
     unsigned int downloaderImplementsAnimatedImage:1;
     unsigned int downloaderImplementsCancelWithResume:1;
+    unsigned int downloaderImplementsDownloadURLWithQOSDownload:1;
   } _downloaderFlags;
 
   // Immutable and set on init only. We don't need to lock in this case.
@@ -98,6 +102,7 @@ static std::atomic_bool _useMainThreadDelegateCallbacks(true);
   _downloaderFlags.downloaderImplementsSetPriority = [downloader respondsToSelector:@selector(setPriority:withDownloadIdentifier:)];
   _downloaderFlags.downloaderImplementsAnimatedImage = [downloader respondsToSelector:@selector(animatedImageWithData:)];
   _downloaderFlags.downloaderImplementsCancelWithResume = [downloader respondsToSelector:@selector(cancelImageDownloadWithResumePossibilityForIdentifier:)];
+  _downloaderFlags.downloaderImplementsDownloadURLWithQOSDownload = [downloader respondsToSelector:@selector(downloadImageWithURL:callbackQueue:downloadProgress:completion:options:qosDownloadID:)];
 
   _cacheFlags.cacheSupportsClearing = [cache respondsToSelector:@selector(clearFetchedImageFromCacheWithURL:)];
   _cacheFlags.cacheSupportsSynchronousFetch = [cache respondsToSelector:@selector(synchronouslyFetchedCachedImageWithURL:)];
@@ -310,6 +315,9 @@ static std::atomic_bool _useMainThreadDelegateCallbacks(true);
   _delegateFlags.delegateDidLoadImage = [delegate respondsToSelector:@selector(imageNode:didLoadImage:)];
   _delegateFlags.delegateDidLoadImageFromCache = [delegate respondsToSelector:@selector(imageNodeDidLoadImageFromCache:)];
   _delegateFlags.delegateDidLoadImageWithInfo = [delegate respondsToSelector:@selector(imageNode:didLoadImage:info:)];
+  _delegateFlags.delegateImageProcessingOption = [delegate respondsToSelector:@selector(imageProcessingOption)];
+  _delegateFlags.delegateQOSHTTPDownloaderType = [delegate respondsToSelector:@selector(qosHTTPDownloaderType)];
+  _delegateFlags.delegateGetPrefix = [delegate respondsToSelector:@selector(getPrefix)];
 }
 
 - (id<ASNetworkImageNodeDelegate>)delegate
@@ -592,15 +600,38 @@ static std::atomic_bool _useMainThreadDelegateCallbacks(true);
       url = self->_URL;
     }
 
-
-    downloadIdentifier = [self->_downloader downloadImageWithURL:url
-                                             callbackQueue:[self callbackQueue]
-                                          downloadProgress:NULL
-                                                completion:^(id <ASImageContainerProtocol> _Nullable imageContainer, NSError * _Nullable error, id  _Nullable downloadIdentifier, id _Nullable userInfo) {
-                                                  if (finished != NULL) {
-                                                    finished(imageContainer, error, downloadIdentifier, userInfo);
-                                                  }
-                                                }];
+    if (self->_downloaderFlags.downloaderImplementsDownloadURLWithQOSDownload) {
+      NSUInteger imageProcessingOption = 0;
+      if (_delegateFlags.delegateImageProcessingOption) {
+        imageProcessingOption = [self.delegate imageProcessingOption];
+      }
+      
+      NSUInteger qosHTTPDownloaderType = 0;
+      if (_delegateFlags.delegateQOSHTTPDownloaderType) {
+        qosHTTPDownloaderType = [self.delegate qosHTTPDownloaderType];
+      }
+      
+      downloadIdentifier = [self->_downloader downloadImageWithURL:url
+                                                     callbackQueue:dispatch_get_main_queue()
+                                                  downloadProgress:NULL
+                                                        completion:^(id<ASImageContainerProtocol>  _Nullable image, NSError * _Nullable error, id  _Nullable downloadIdentifier, id  _Nullable userInfo) {
+                                                          if (finished != NULL) {
+                                                            finished(image, error, downloadIdentifier, userInfo);
+                                                          }
+                                                        }
+                                                           options:imageProcessingOption
+                                                     qosDownloadID:qosHTTPDownloaderType];
+    }
+    else {
+      downloadIdentifier = [self->_downloader downloadImageWithURL:url
+                                                     callbackQueue:[self callbackQueue]
+                                                  downloadProgress:NULL
+                                                        completion:^(id <ASImageContainerProtocol> _Nullable imageContainer, NSError * _Nullable error, id  _Nullable downloadIdentifier, id _Nullable userInfo) {
+                                                          if (finished != NULL) {
+                                                            finished(imageContainer, error, downloadIdentifier, userInfo);
+                                                          }
+                                                        }];
+    }
     as_log_verbose(ASImageLoadingLog(), "Downloading image for %@ url: %@", self, url);
   
     {
@@ -813,9 +844,23 @@ static std::atomic_bool _useMainThreadDelegateCallbacks(true);
         if (delegateWillLoadImageFromCache) {
           [delegate imageNodeWillLoadImageFromCache:self];
         }
-        [_cache cachedImageWithURL:URL
-                     callbackQueue:[self callbackQueue]
-                        completion:completion];
+          
+        NSString *prefix = nil;
+        if (_delegateFlags.delegateGetPrefix) {
+          prefix = [self.delegate getPrefix];
+        }
+        
+        if (prefix && [_cache respondsToSelector:@selector(cachedImageWithURL:prefix:callbackQueue:completion:)]) {
+          [_cache cachedImageWithURL:URL
+                              prefix:prefix
+                       callbackQueue:[self callbackQueue]
+                          completion:completion];
+        }
+        else {
+          [_cache cachedImageWithURL:URL
+                       callbackQueue:[self callbackQueue]
+                          completion:completion];
+        }
       } else {
         if (delegateWillLoadImageFromNetwork) {
           [delegate imageNodeWillLoadImageFromNetwork:self];
