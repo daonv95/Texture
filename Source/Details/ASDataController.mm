@@ -191,6 +191,9 @@ typedef void (^ASDataControllerSynchronizationBlock)();
   
   ASDisplayNodeAssert(ASSizeRangeHasSignificantArea(constrainedSize), @"Attempt to layout cell node with invalid size range %@", NSStringFromASSizeRange(constrainedSize));
 
+  // FIXME: DaoNV Workaround vì reload không gọi invalidateLayout dẫn tới không update UI.
+  // Sẽ trace ra nguyên nhân và update lại sau
+  [node invalidateCalculatedLayout];
   CGRect frame = CGRectZero;
   frame.size = [node layoutThatFits:constrainedSize].size;
   node.frame = frame;
