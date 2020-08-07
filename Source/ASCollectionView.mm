@@ -194,9 +194,11 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     unsigned int collectionNodeCanPerformActionForItem:1;
     unsigned int collectionNodePerformActionForItem:1;
     unsigned int collectionNodeWillBeginBatchFetch:1;
+    unsigned int collectionNodeWillBeginBatchFetchWithScrollDirection:1;
     unsigned int collectionNodeWillDisplaySupplementaryElement:1;
     unsigned int collectionNodeDidEndDisplayingSupplementaryElement:1;
     unsigned int shouldBatchFetchForCollectionNode:1;
+    unsigned int shouldBatchFetchForCollectionNodeWithScrollDirection:1;
 
     // Interop flags
     unsigned int interop:1;
@@ -553,7 +555,9 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     _asyncDelegateFlags.collectionNodeWillDisplayItem = [_asyncDelegate respondsToSelector:@selector(collectionNode:willDisplayItemWithNode:)];
     _asyncDelegateFlags.collectionNodeDidEndDisplayingItem = [_asyncDelegate respondsToSelector:@selector(collectionNode:didEndDisplayingItemWithNode:)];
     _asyncDelegateFlags.collectionNodeWillBeginBatchFetch = [_asyncDelegate respondsToSelector:@selector(collectionNode:willBeginBatchFetchWithContext:)];
+    _asyncDelegateFlags.collectionNodeWillBeginBatchFetchWithScrollDirection = [_asyncDelegate respondsToSelector:@selector(collectionNode:willBeginBatchFetchWithContext:scrollDirection:)];
     _asyncDelegateFlags.shouldBatchFetchForCollectionNode = [_asyncDelegate respondsToSelector:@selector(shouldBatchFetchForCollectionNode:)];
+    _asyncDelegateFlags.shouldBatchFetchForCollectionNodeWithScrollDirection = [_asyncDelegate respondsToSelector:@selector(shouldBatchFetchForCollectionNode:withScrollDirection:)];
     _asyncDelegateFlags.collectionNodeShouldSelectItem = [_asyncDelegate respondsToSelector:@selector(collectionNode:shouldSelectItemAtIndexPath:)];
     _asyncDelegateFlags.collectionNodeDidSelectItem = [_asyncDelegate respondsToSelector:@selector(collectionNode:didSelectItemAtIndexPath:)];
     _asyncDelegateFlags.collectionNodeShouldDeselectItem = [_asyncDelegate respondsToSelector:@selector(collectionNode:shouldDeselectItemAtIndexPath:)];
@@ -1792,7 +1796,20 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
   return _batchContext;
 }
 
+- (BOOL)allowsPrefetchScrollDirectionUp {
+  return self.collectionNode && self.collectionNode.allowsPrefetchScrollDirectionUp;
+}
+
 - (BOOL)canBatchFetch
+{
+  if (self.collectionNode && self.collectionNode.allowsPrefetchScrollDirectionUp) {
+    return [self canBatchFetchCurrentDirection];
+  } else {
+    return [self canBatchFetchScrollDirectionDown];
+  }
+}
+
+- (BOOL)canBatchFetchScrollDirectionDown
 {
   // if the delegate does not respond to this method, there is no point in starting to fetch
   BOOL canFetch = _asyncDelegateFlags.collectionNodeWillBeginBatchFetch || _asyncDelegateFlags.collectionViewWillBeginBatchFetch;
@@ -1807,6 +1824,16 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
   } else {
     return canFetch;
   }
+}
+
+- (BOOL)canBatchFetchCurrentDirection
+{
+  BOOL canFetch = _asyncDelegateFlags.collectionNodeWillBeginBatchFetchWithScrollDirection;
+  if (canFetch && _asyncDelegateFlags.shouldBatchFetchForCollectionNodeWithScrollDirection) {
+    GET_COLLECTIONNODE_OR_RETURN(collectionNode, NO);
+    return [_asyncDelegate shouldBatchFetchForCollectionNode:collectionNode withScrollDirection:self.scrollDirection];
+  }
+  return canFetch;
 }
 
 - (id<ASBatchFetchingDelegate>)batchFetchingDelegate{
@@ -1846,6 +1873,28 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 
 - (void)_beginBatchFetching
 {
+  if (self.collectionNode && self.collectionNode.allowsPrefetchScrollDirectionUp) {
+    [self _beginBatchFetchingCurrentScrollDirection];
+  } else {
+    [self _beginBatchFetchingScrollDiretionDown];
+  }
+}
+
+- (void)_beginBatchFetchingCurrentScrollDirection
+{
+  as_activity_create_for_scope("Batch fetch for collection node");
+  [_batchContext beginBatchFetching];
+  if (_asyncDelegateFlags.collectionNodeWillBeginBatchFetchWithScrollDirection) {
+    ASScrollDirection scrollDirection = self.scrollDirection;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+      GET_COLLECTIONNODE_OR_RETURN(collectionNode, (void)0);
+      as_log_debug(ASCollectionLog(), "Beginning batch fetch for %@ with context %@", collectionNode, _batchContext);
+      [_asyncDelegate collectionNode:collectionNode willBeginBatchFetchWithContext:_batchContext scrollDirection:scrollDirection];
+    });
+  }
+}
+
+- (void)_beginBatchFetchingScrollDiretionDown {
   as_activity_create_for_scope("Batch fetch for collection node");
   [_batchContext beginBatchFetching];
   if (_asyncDelegateFlags.collectionNodeWillBeginBatchFetch) {

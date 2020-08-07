@@ -29,7 +29,8 @@ BOOL ASDisplayShouldFetchBatchForScrollView(UIScrollView<ASBatchFetchingScrollVi
   CGFloat leadingScreens = scrollView.leadingScreensForBatching;
   id<ASBatchFetchingDelegate> delegate = scrollView.batchFetchingDelegate;
   BOOL visible = (scrollView.window != nil);
-  return ASDisplayShouldFetchBatchForContext(context, scrollDirection, scrollableDirections, bounds, contentSize, contentOffset, leadingScreens, visible, velocity, delegate);
+  BOOL allowsPrefetchScrollDirectionUp = [scrollView allowsPrefetchScrollDirectionUp];
+  return ASDisplayShouldFetchBatchForContext(context, scrollDirection, scrollableDirections, bounds, contentSize, contentOffset, leadingScreens, visible, velocity, delegate, allowsPrefetchScrollDirectionUp);
 }
 
 BOOL ASDisplayShouldFetchBatchForContext(ASBatchContext *context,
@@ -41,7 +42,8 @@ BOOL ASDisplayShouldFetchBatchForContext(ASBatchContext *context,
                                          CGFloat leadingScreens,
                                          BOOL visible,
                                          CGPoint velocity,
-                                         id<ASBatchFetchingDelegate> delegate)
+                                         id<ASBatchFetchingDelegate> delegate,
+                                         BOOL allowsPrefetchScrollDirectionUp)
 {
   // Do not allow fetching if a batch is already in-flight and hasn't been completed or cancelled
   if ([context isFetching]) {
@@ -81,7 +83,12 @@ BOOL ASDisplayShouldFetchBatchForContext(ASBatchContext *context,
   // If they are scrolling toward the head of content, don't batch fetch.
   BOOL isScrollingTowardHead = (ASScrollDirectionContainsUp(scrollDirection) || ASScrollDirectionContainsLeft(scrollDirection));
   if (isScrollingTowardHead) {
-    return NO;
+    if (!allowsPrefetchScrollDirectionUp) return NO;
+    
+    CGFloat triggerDistance = viewLength * leadingScreens;
+    CGFloat remainingDistance = offset;
+    BOOL result = remainingDistance <= triggerDistance;
+    return result;
   }
 
   CGFloat triggerDistance = viewLength * leadingScreens;

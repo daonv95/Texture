@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (ASBatchContext *)batchContext;
 - (CGFloat)leadingScreensForBatching;
 - (nullable id<ASBatchFetchingDelegate>)batchFetchingDelegate;
+- (BOOL)allowsPrefetchScrollDirectionUp;
 
 @end
 
@@ -68,6 +69,7 @@ AS_EXTERN BOOL ASDisplayShouldFetchBatchForContext(ASBatchContext *context,
                                                 CGFloat leadingScreens,
                                                 BOOL visible,
                                                 CGPoint velocity,
-                                                _Nullable id<ASBatchFetchingDelegate> delegate);
+                                                _Nullable id<ASBatchFetchingDelegate> delegate,
+                                                BOOL allowsPrefetchScrollDirectionUp);
 
 NS_ASSUME_NONNULL_END

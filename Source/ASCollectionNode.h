@@ -125,6 +125,14 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic) BOOL showsHorizontalScrollIndicator;
 
+/***
+ * A Boolean value that controls whether notify the delegate to prefetch when ScrollDirection is UP or not.
+ * The default value of this property is NO (just prefetch when ScrollDirectionDown).
+ * Notice: when ASCollectionNode is inverted, scroll Direction doesn't change.
+ * Ex: inverted = YES, if you scroll up then scrollDirection = ScrollDirectionDown
+ */
+@property (nonatomic) BOOL allowsPrefetchScrollDirectionUp;
+
 /**
  * The layout used to organize the node's items.
  *
@@ -781,6 +789,7 @@ NS_ASSUME_NONNULL_BEGIN
  * implementing a UIRefreshControl.
  */
 - (void)collectionNode:(ASCollectionNode *)collectionNode willBeginBatchFetchWithContext:(ASBatchContext *)context;
+- (void)collectionNode:(ASCollectionNode *)collectionNode willBeginBatchFetchWithContext:(ASBatchContext *)context scrollDirection:(ASScrollDirection)scrollDirection;
 
 /**
  * Tell the collection node if batch fetching should begin.
@@ -794,6 +803,7 @@ NS_ASSUME_NONNULL_BEGIN
  * should occur.
  */
 - (BOOL)shouldBatchFetchForCollectionNode:(ASCollectionNode *)collectionNode;
+- (BOOL)shouldBatchFetchForCollectionNode:(ASCollectionNode *)collectionNode withScrollDirection:(ASScrollDirection)scrollDirection;
 
 /**
  * Provides the constrained size range for measuring the node at the index path.
