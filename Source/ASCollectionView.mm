@@ -1186,8 +1186,10 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
 
   if (wrapperNode.cellForItemBlock) {
     cell = wrapperNode.cellForItemBlock(wrapperNode);
+    wrapperNode.owningCell = cell;
   } else if (shouldDequeueExternally) {
     cell = [(id<ASCollectionDataSourceInterop>)_asyncDataSource collectionView:collectionView cellForItemAtIndexPath:indexPath];
+    wrapperNode.owningCell = cell;
   } else {
     cell = [self dequeueReusableCellWithReuseIdentifier:kReuseIdentifier forIndexPath:indexPath];
   }
@@ -1269,6 +1271,9 @@ static NSString * const kReuseIdentifier = @"_ASCollectionReuseIdentifier";
     ASCellNode *node = [self nodeForItemAtIndexPath:indexPath];
     if (node.shouldUseUIKitCell) {
       [(id <ASCollectionDelegateInterop>)_asyncDelegate collectionView:collectionView didEndDisplayingCell:rawCell forItemAtIndexPath:indexPath];
+        
+        ASWrapperCellNode *wrapperNode = ASDynamicCast(node, ASWrapperCellNode);
+        wrapperNode.owningCell = nil;
     }
   }
 
