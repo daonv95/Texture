@@ -71,6 +71,19 @@ typedef UICollectionReusableView * _Nonnull(^ASViewForSupplementaryBlock)(ASWrap
 @property (nonatomic, readonly) ASCellForItemBlock cellForItemBlock;
 @property (nonatomic, readonly) ASViewForSupplementaryBlock viewForSupplementaryBlock;
 
+@property (nonatomic, weak, nullable) UICollectionViewCell *owningCell;
+
+@end
+
+
+@class ASTableWrapperCellNode;
+
+typedef UITableViewCell * _Nonnull(^ASTableCellForItemBlock)(ASTableWrapperCellNode *node);
+
+@interface ASTableWrapperCellNode : ASWrapperCellNode
+
+@property (nonatomic, readonly) ASTableCellForItemBlock cellForItemBlock;
+
 @end
 
 NS_ASSUME_NONNULL_END

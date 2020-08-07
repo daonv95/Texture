@@ -54,6 +54,26 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic) CGPoint position;
 
+/**
+ * The underlying object described by this layout
+ */
+@property (nonatomic, weak) id<ASLayoutElement> layoutElement;
+
+/**
+ * The type of ASLayoutElement that created this layout
+ */
+@property (nonatomic) ASLayoutElementType type;
+
+/**
+ * Size of the current layout
+ */
+@property (nonatomic) CGSize size;
+
+/**
+ * Array of ASLayouts. Each must have a valid non-null position.
+ */
+@property (nonatomic, copy) NSArray<ASLayout *> *sublayouts;
+
 @end
 
 NS_ASSUME_NONNULL_END
